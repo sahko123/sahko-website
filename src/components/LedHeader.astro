@@ -25,9 +25,11 @@ import { SITE_TITLE } from '../consts';
 	const ROWS = LETTER_HEIGHT;
 	const ORANGE = '255,140,0';
 	const BASE_ALPHA = 0.06;
-	const RISE_MS = 70;
-	const DECAY_MS = 260;
-	const SWEEP_MS = 1200;
+	const SWEEP_MS = 2400;
+	const HALF_BAND = 14; // columns of falloff on either side of the wave's center
+	const SPARK_TAU = 90; // ms, how fast an un-reignited spark fades
+	const LOCK_TAU = 90; // ms, how fast a passed column settles to its final state
+	const LOCK_TAIL = 400; // ms, extra time after the sweep for the lock-in to converge
 	const STORAGE_KEY = 'sahko:led-header-played';
 
 	const wrap = document.querySelector<HTMLDivElement>('.led-header');
@@ -43,6 +45,7 @@ import { SITE_TITLE } from '../consts';
 		let letterStart = 0;
 		let cssWidth = 0;
 		let cssHeight = 0;
+		let brightness: Float32Array = new Float32Array(0);
 
 		function metricsFor(width: number) {
 			if (width < 400) return { size: 5, gap: 1 };
@@ -68,6 +71,8 @@ import { SITE_TITLE } from '../consts';
 			canvas!.height = cssHeight * dpr;
 			canvas!.style.height = `${cssHeight}px`;
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+			brightness = new Float32Array(columns * ROWS).fill(BASE_ALPHA);
 		}
 
 		function isLit(col: number, row: number) {
@@ -105,29 +110,49 @@ import { SITE_TITLE } from '../consts';
 			ctx.shadowBlur = 0;
 		}
 
-		function alphaAt(dt: number, target: number) {
-			if (dt < 0) return BASE_ALPHA;
-			if (dt < RISE_MS) return BASE_ALPHA + (1 - BASE_ALPHA) * (dt / RISE_MS);
-			if (dt < RISE_MS + DECAY_MS) {
-				const p = (dt - RISE_MS) / DECAY_MS;
-				return 1 + (target - 1) * p;
-			}
-			return target;
-		}
-
 		function playSweep() {
 			const start = performance.now();
-			const totalRuntime = SWEEP_MS + RISE_MS + DECAY_MS + 100;
+			const totalRuntime = SWEEP_MS + LOCK_TAIL;
+			let lastTime = start;
 
 			function frame(now: number) {
+				const dt = now - lastTime;
+				lastTime = now;
 				const elapsed = now - start;
+
+				// Wave center travels from just left of column 0 to just right of
+				// the last column, so the density falloff is visible entering and
+				// leaving the grid rather than snapping in at the edges.
+				const span = columns + 2 * HALF_BAND;
+				const waveCenter = -HALF_BAND + span * Math.min(elapsed / SWEEP_MS, 1);
+
 				ctx.clearRect(0, 0, cssWidth, cssHeight);
 				for (let c = 0; c < columns; c++) {
-					const igniteAt = columns > 1 ? (c / (columns - 1)) * SWEEP_MS : 0;
-					const dt = elapsed - igniteAt;
+					const d = c - waveCenter;
 					for (let r = 0; r < ROWS; r++) {
+						const idx = c * ROWS + r;
 						const target = isLit(c, r) ? 1 : BASE_ALPHA;
-						drawCell(c, r, alphaAt(dt, target));
+
+						if (d > HALF_BAND) {
+							// Wave hasn't reached this column yet.
+							brightness[idx] = BASE_ALPHA;
+						} else if (d >= -HALF_BAND) {
+							// Inside the wave: random pixels spark, more often near
+							// the center where density reaches 1 (guaranteed on).
+							const density = 1 - Math.abs(d) / HALF_BAND;
+							if (Math.random() < density) {
+								brightness[idx] = 1;
+							} else {
+								const decay = Math.exp(-dt / SPARK_TAU);
+								brightness[idx] = BASE_ALPHA + (brightness[idx] - BASE_ALPHA) * decay;
+							}
+						} else {
+							// Wave has passed: settle into the final state.
+							const lock = 1 - Math.exp(-dt / LOCK_TAU);
+							brightness[idx] += (target - brightness[idx]) * lock;
+						}
+
+						drawCell(c, r, brightness[idx]);
 					}
 				}
 				ctx.shadowBlur = 0;
