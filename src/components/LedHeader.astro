@@ -110,12 +110,17 @@ import { SITE_TITLE } from '../consts';
 			ctx.shadowBlur = 0;
 		}
 
+		let animationToken = 0;
+
 		function playSweep() {
+			const token = ++animationToken;
 			const start = performance.now();
 			const totalRuntime = SWEEP_MS + LOCK_TAIL;
 			let lastTime = start;
 
 			function frame(now: number) {
+				if (token !== animationToken) return; // superseded by a newer replay
+
 				const dt = now - lastTime;
 				lastTime = now;
 				const elapsed = now - start;
@@ -183,6 +188,10 @@ import { SITE_TITLE } from '../consts';
 			sessionStorage.setItem(STORAGE_KEY, '1');
 		} else {
 			playSweep();
+		}
+
+		if (!reduceMotion) {
+			wrap.addEventListener('mouseenter', () => playSweep());
 		}
 
 		let resizeTimer: ReturnType<typeof setTimeout>;
