@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SOCIAL_LINKS } from '../consts';
+---
+
+<Layout>
+	<h1>Sahko</h1>
+	<p>
+		Welcome! This is my little corner of the internet — videos, occasional
+		writing, and links to everywhere else I post.
+	</p>
+
+	<h2>Find me</h2>
+	<ul class="plain">
+		{
+			SOCIAL_LINKS.map((link) => (
+				<li>
+					<a href={link.href} target="_blank" rel="noopener noreferrer">
+						{link.label}
+					</a>
+				</li>
+			))
+		}
+	</ul>
+</Layout>

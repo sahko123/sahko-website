@@ -1,0 +1,32 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog')).sort(
+	(a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
+);
+---
+
+<Layout title="Blog">
+	<h1>Blog</h1>
+	{posts.length === 0 && <p class="muted">No posts yet.</p>}
+	<ul class="plain">
+		{
+			posts.map((post) => (
+				<li class="card">
+					<a href={`/blog/${post.id}/`}>
+						<strong>{post.data.title}</strong>
+					</a>
+					<p class="muted">
+						{post.data.pubDate.toLocaleDateString('en-IE', {
+							year: 'numeric',
+							month: 'long',
+							day: 'numeric',
+						})}
+					</p>
+					{post.data.description && <p>{post.data.description}</p>}
+				</li>
+			))
+		}
+	</ul>
+</Layout>

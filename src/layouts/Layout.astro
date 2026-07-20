@@ -1,0 +1,37 @@
+---
+import { SITE_TITLE, SITE_DESCRIPTION, NAV_LINKS } from '../consts';
+import '../styles/global.css';
+
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const { title, description = SITE_DESCRIPTION } = Astro.props;
+const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content={description} />
+		<meta name="generator" content={Astro.generator} />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<title>{pageTitle}</title>
+	</head>
+	<body>
+		<header class="site">
+			<a class="brand" href="/">{SITE_TITLE}</a>
+			<nav>
+				{NAV_LINKS.map((link) => <a href={link.href}>{link.label}</a>)}
+			</nav>
+		</header>
+		<main class="wrap">
+			<slot />
+		</main>
+		<footer class="site">
+			<p>&copy; {new Date().getFullYear()} {SITE_TITLE}</p>
+		</footer>
+	</body>
+</html>

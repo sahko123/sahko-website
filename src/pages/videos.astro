@@ -1,0 +1,108 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
+---
+
+<Layout title="Videos">
+	<h1>Videos</h1>
+
+	{
+		!YOUTUBE_API_KEY && (
+			<p class="muted">
+				Video feed isn't wired up yet — add a YouTube Data API v3 key in{' '}
+				<code>src/consts.ts</code> (restricted to the sahko.ie referrer) to
+				enable it. See the comment above <code>YOUTUBE_API_KEY</code> for
+				setup steps.
+			</p>
+		)
+	}
+
+	<div id="videos" data-handle={YOUTUBE_HANDLE} data-key={YOUTUBE_API_KEY}>
+		{YOUTUBE_API_KEY && <p class="muted">Loading videos…</p>}
+	</div>
+</Layout>
+
+<script>
+	// Everything below runs in the visitor's browser — the server never
+	// touches YouTube. Results are cached in sessionStorage for an hour so
+	// repeat page views within a session don't burn API quota.
+	const container = document.getElementById('videos');
+	if (container) {
+		const handle = container.dataset.handle;
+		const key = container.dataset.key;
+
+		if (key) {
+			loadVideos(handle!, key).catch((err) => {
+				console.error(err);
+				container.innerHTML = `<p class="muted">Couldn't load videos right now.</p>`;
+			});
+		}
+	}
+
+	async function loadVideos(handle: string, key: string) {
+		const cacheKey = `yt-videos:${handle}`;
+		const cached = sessionStorage.getItem(cacheKey);
+		if (cached) {
+			const { videos, ts } = JSON.parse(cached);
+			if (Date.now() - ts < 60 * 60 * 1000) {
+				render(videos);
+				return;
+			}
+		}
+
+		const channelRes = await fetch(
+			`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle=${encodeURIComponent(handle)}&key=${key}`
+		);
+		if (!channelRes.ok) throw new Error(`channels.list failed: ${channelRes.status}`);
+		const channelData = await channelRes.json();
+		const uploadsPlaylistId =
+			channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+		if (!uploadsPlaylistId) throw new Error('No uploads playlist found for handle');
+
+		const itemsRes = await fetch(
+			`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=12&playlistId=${uploadsPlaylistId}&key=${key}`
+		);
+		if (!itemsRes.ok) throw new Error(`playlistItems.list failed: ${itemsRes.status}`);
+		const itemsData = await itemsRes.json();
+
+		const videos = (itemsData.items ?? []).map((item: any) => ({
+			id: item.snippet.resourceId.videoId,
+			title: item.snippet.title,
+			thumbnail:
+				item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
+			publishedAt: item.snippet.publishedAt,
+		}));
+
+		sessionStorage.setItem(cacheKey, JSON.stringify({ videos, ts: Date.now() }));
+		render(videos);
+	}
+
+	function render(videos: any[]) {
+		if (!container) return;
+		if (videos.length === 0) {
+			container.innerHTML = `<p class="muted">No videos found.</p>`;
+			return;
+		}
+		container.innerHTML = videos
+			.map(
+				(v) => `
+			<div class="card">
+				<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener noreferrer">
+					<img src="${v.thumbnail}" alt="${escapeHtml(v.title)}" loading="lazy" />
+				</a>
+				<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener noreferrer">
+					<strong>${escapeHtml(v.title)}</strong>
+				</a>
+				<p class="muted">${new Date(v.publishedAt).toLocaleDateString('en-IE', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+			</div>
+		`
+			)
+			.join('');
+	}
+
+	function escapeHtml(str: string) {
+		const div = document.createElement('div');
+		div.textContent = str;
+		return div.innerHTML;
+	}
+</script>
