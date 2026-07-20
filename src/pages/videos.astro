@@ -26,6 +26,8 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 	// Everything below runs in the visitor's browser — the server never
 	// touches YouTube. Results are cached in sessionStorage for an hour so
 	// repeat page views within a session don't burn API quota.
+	import { formatDate } from '../format-date';
+
 	const container = document.getElementById('videos');
 	if (container) {
 		const handle = container.dataset.handle;
@@ -65,13 +67,15 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 		if (!itemsRes.ok) throw new Error(`playlistItems.list failed: ${itemsRes.status}`);
 		const itemsData = await itemsRes.json();
 
-		const videos = (itemsData.items ?? []).map((item: any) => ({
-			id: item.snippet.resourceId.videoId,
-			title: item.snippet.title,
-			thumbnail:
-				item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
-			publishedAt: item.snippet.publishedAt,
-		}));
+		const videos = (itemsData.items ?? [])
+			.filter((item: any) => item.snippet?.thumbnails)
+			.map((item: any) => ({
+				id: item.snippet.resourceId.videoId,
+				title: item.snippet.title,
+				thumbnail:
+					item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url,
+				publishedAt: item.snippet.publishedAt,
+			}));
 
 		sessionStorage.setItem(cacheKey, JSON.stringify({ videos, ts: Date.now() }));
 		render(videos);
@@ -79,30 +83,48 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 
 	function render(videos: any[]) {
 		if (!container) return;
+		container.replaceChildren();
 		if (videos.length === 0) {
-			container.innerHTML = `<p class="muted">No videos found.</p>`;
+			const empty = document.createElement('p');
+			empty.className = 'muted';
+			empty.textContent = 'No videos found.';
+			container.append(empty);
 			return;
 		}
-		container.innerHTML = videos
-			.map(
-				(v) => `
-			<div class="card">
-				<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener noreferrer">
-					<img src="${v.thumbnail}" alt="${escapeHtml(v.title)}" loading="lazy" />
-				</a>
-				<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener noreferrer">
-					<strong>${escapeHtml(v.title)}</strong>
-				</a>
-				<p class="muted">${new Date(v.publishedAt).toLocaleDateString('en-IE', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-			</div>
-		`
-			)
-			.join('');
+		for (const v of videos) {
+			container.append(videoCard(v));
+		}
 	}
 
-	function escapeHtml(str: string) {
-		const div = document.createElement('div');
-		div.textContent = str;
-		return div.innerHTML;
+	function videoCard(v: { id: string; title: string; thumbnail: string; publishedAt: string }) {
+		const watchUrl = `https://www.youtube.com/watch?v=${v.id}`;
+
+		const card = document.createElement('div');
+		card.className = 'card';
+
+		const thumbLink = document.createElement('a');
+		thumbLink.href = watchUrl;
+		thumbLink.target = '_blank';
+		thumbLink.rel = 'noopener noreferrer';
+		const img = document.createElement('img');
+		img.src = v.thumbnail;
+		img.alt = v.title;
+		img.loading = 'lazy';
+		thumbLink.append(img);
+
+		const titleLink = document.createElement('a');
+		titleLink.href = watchUrl;
+		titleLink.target = '_blank';
+		titleLink.rel = 'noopener noreferrer';
+		const strong = document.createElement('strong');
+		strong.textContent = v.title;
+		titleLink.append(strong);
+
+		const date = document.createElement('p');
+		date.className = 'muted';
+		date.textContent = formatDate(new Date(v.publishedAt));
+
+		card.append(thumbLink, titleLink, date);
+		return card;
 	}
 </script>

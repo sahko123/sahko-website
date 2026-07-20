@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
+import { formatDate } from '../../format-date';
 
 const posts = (await getCollection('blog')).sort(
 	(a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
@@ -17,13 +18,7 @@ const posts = (await getCollection('blog')).sort(
 					<a href={`/blog/${post.id}/`}>
 						<strong>{post.data.title}</strong>
 					</a>
-					<p class="muted">
-						{post.data.pubDate.toLocaleDateString('en-IE', {
-							year: 'numeric',
-							month: 'long',
-							day: 'numeric',
-						})}
-					</p>
+					<p class="muted">{formatDate(post.data.pubDate)}</p>
 					{post.data.description && <p>{post.data.description}</p>}
 				</li>
 			))

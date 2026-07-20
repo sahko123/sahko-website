@@ -29,14 +29,16 @@ import { SITE_TITLE } from '../consts';
 	const SWEEP_MS = 2400;
 	const HALF_BAND = 14; // columns of falloff on either side of the wave's center
 	const SPARK_TAU = 90; // ms, how fast an un-reignited spark fades
-	const LOCK_TAU = 90; // ms, how fast a passed column settles to its final state
+	const LOCK_TAU = 90; // ms, how fast a lit/passed column settles to its final state
 	const LOCK_TAIL = 400; // ms, extra time after the sweep for the lock-in to converge
+	const MIN_CELL_SIZE = 2;
 	const STORAGE_KEY = 'sahko:led-header-played';
 
 	const wrap = document.querySelector<HTMLDivElement>('.led-header');
 	const canvas = document.getElementById('led-canvas') as HTMLCanvasElement | null;
-	if (wrap && canvas) {
-		const ctx = canvas.getContext('2d')!;
+	const ctx = canvas?.getContext('2d') ?? null;
+
+	if (wrap && canvas && ctx) {
 		const letterCols = buildTextColumns('SAHKO');
 
 		let columns = 0;
@@ -47,6 +49,8 @@ import { SITE_TITLE } from '../consts';
 		let cssWidth = 0;
 		let cssHeight = 0;
 		let brightness: Float32Array = new Float32Array(0);
+		let animationToken = 0;
+		let isAnimating = false;
 
 		function metricsFor(width: number) {
 			if (width < 400) return { size: 5, gap: 1 };
@@ -60,6 +64,17 @@ import { SITE_TITLE } from '../consts';
 			const m = metricsFor(width);
 			cellSize = m.size;
 			gap = m.gap;
+
+			// The breakpoint table above is tuned for how the grid should look,
+			// not for the hard minimum needed to fit "SAHKO" — shrink further if
+			// the viewport is narrower than that, instead of letting it clip.
+			while (
+				letterCols.length * (cellSize + gap) - gap > width &&
+				cellSize > MIN_CELL_SIZE
+			) {
+				cellSize -= 1;
+			}
+
 			columns = Math.max(letterCols.length, Math.floor((width + gap) / (cellSize + gap)));
 			letterStart = Math.floor((columns - letterCols.length) / 2);
 
@@ -71,7 +86,7 @@ import { SITE_TITLE } from '../consts';
 			canvas!.width = cssWidth * dpr;
 			canvas!.height = cssHeight * dpr;
 			canvas!.style.height = `${cssHeight}px`;
-			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 
 			brightness = new Float32Array(columns * ROWS).fill(BASE_ALPHA);
 		}
@@ -86,41 +101,40 @@ import { SITE_TITLE } from '../consts';
 			const x = offsetX + col * (cellSize + gap);
 			const y = row * (cellSize + gap);
 			if (alpha > 0.4) {
-				ctx.shadowColor = `rgba(${ORANGE}, ${Math.min(alpha, 1)})`;
-				ctx.shadowBlur = cellSize * 1.1;
+				ctx!.shadowColor = `rgba(${ORANGE}, ${Math.min(alpha, 1)})`;
+				ctx!.shadowBlur = cellSize * 1.1;
 			} else {
-				ctx.shadowBlur = 0;
+				ctx!.shadowBlur = 0;
 			}
-			ctx.fillStyle = `rgba(${ORANGE}, ${alpha.toFixed(3)})`;
-			if (typeof ctx.roundRect === 'function') {
-				ctx.beginPath();
-				ctx.roundRect(x, y, cellSize, cellSize, Math.min(2, cellSize / 3));
-				ctx.fill();
+			ctx!.fillStyle = `rgba(${ORANGE}, ${alpha.toFixed(3)})`;
+			if (typeof ctx!.roundRect === 'function') {
+				ctx!.beginPath();
+				ctx!.roundRect(x, y, cellSize, cellSize, Math.min(2, cellSize / 3));
+				ctx!.fill();
 			} else {
-				ctx.fillRect(x, y, cellSize, cellSize);
+				ctx!.fillRect(x, y, cellSize, cellSize);
 			}
 		}
 
 		function drawSettled() {
-			ctx.clearRect(0, 0, cssWidth, cssHeight);
+			ctx!.clearRect(0, 0, cssWidth, cssHeight);
 			for (let c = 0; c < columns; c++) {
 				for (let r = 0; r < ROWS; r++) {
 					drawCell(c, r, isLit(c, r) ? 1 : BASE_ALPHA);
 				}
 			}
-			ctx.shadowBlur = 0;
+			ctx!.shadowBlur = 0;
 		}
-
-		let animationToken = 0;
 
 		function playSweep() {
 			const token = ++animationToken;
+			isAnimating = true;
 			const start = performance.now();
 			const totalRuntime = SWEEP_MS + LOCK_TAIL;
 			let lastTime = start;
 
 			function frame(now: number) {
-				if (token !== animationToken) return; // superseded by a newer replay
+				if (token !== animationToken) return; // superseded (e.g. a resize)
 
 				const dt = now - lastTime;
 				lastTime = now;
@@ -132,25 +146,28 @@ import { SITE_TITLE } from '../consts';
 				const span = columns + 2 * HALF_BAND;
 				const waveCenter = -HALF_BAND + span * Math.min(elapsed / SWEEP_MS, 1);
 
-				ctx.clearRect(0, 0, cssWidth, cssHeight);
+				ctx!.clearRect(0, 0, cssWidth, cssHeight);
 				for (let c = 0; c < columns; c++) {
 					const d = c - waveCenter;
 					for (let r = 0; r < ROWS; r++) {
 						const idx = c * ROWS + r;
 						const lit = isLit(c, r);
-						const target = lit ? 1 : BASE_ALPHA;
 
 						if (d > HALF_BAND) {
 							// Wave hasn't reached this column yet.
 							brightness[idx] = BASE_ALPHA;
-						} else if (lit && d <= 0) {
-							// The wave's center has reached this letter pixel — lock
-							// it on for good instead of letting it keep sparking.
+						} else if (lit) {
+							// Letter pixel anywhere within the wave's influence: ease
+							// monotonically toward full brightness as the wave
+							// approaches and passes, so it only ever brightens —
+							// never dips right before locking on.
+							const proximity = Math.min(1, 1 - d / HALF_BAND);
+							const targetNow = BASE_ALPHA + (1 - BASE_ALPHA) * proximity;
 							const lock = 1 - Math.exp(-dt / LOCK_TAU);
-							brightness[idx] += (1 - brightness[idx]) * lock;
+							brightness[idx] += (targetNow - brightness[idx]) * lock;
 						} else if (d >= -HALF_BAND) {
-							// Inside the wave: random pixels spark, more often near
-							// the center where density reaches 1 (guaranteed on).
+							// Background inside the wave: random pixels spark, more
+							// often near the center where density reaches 1.
 							const density = 1 - Math.abs(d) / HALF_BAND;
 							if (Math.random() < density) {
 								brightness[idx] = 1;
@@ -159,28 +176,34 @@ import { SITE_TITLE } from '../consts';
 								brightness[idx] = BASE_ALPHA + (brightness[idx] - BASE_ALPHA) * decay;
 							}
 						} else {
-							// Wave has passed: settle into the final state.
+							// Background the wave has passed: settle back to dim.
 							const lock = 1 - Math.exp(-dt / LOCK_TAU);
-							brightness[idx] += (target - brightness[idx]) * lock;
+							brightness[idx] += (BASE_ALPHA - brightness[idx]) * lock;
 						}
 
 						drawCell(c, r, brightness[idx]);
 					}
 				}
-				ctx.shadowBlur = 0;
+				ctx!.shadowBlur = 0;
 
 				if (elapsed < totalRuntime) {
 					requestAnimationFrame(frame);
 				} else {
 					drawSettled();
 					sessionStorage.setItem(STORAGE_KEY, '1');
+					isAnimating = false;
 				}
 			}
 
 			requestAnimationFrame(frame);
 		}
 
-		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+		let reduceMotion = motionQuery.matches;
+		motionQuery.addEventListener('change', (e) => {
+			reduceMotion = e.matches;
+		});
+
 		const alreadyPlayed = sessionStorage.getItem(STORAGE_KEY) === '1';
 
 		layout();
@@ -191,14 +214,17 @@ import { SITE_TITLE } from '../consts';
 			playSweep();
 		}
 
-		if (!reduceMotion) {
-			wrap.addEventListener('mouseenter', () => playSweep());
-		}
+		wrap.addEventListener('mouseenter', () => {
+			if (reduceMotion || isAnimating) return;
+			playSweep();
+		});
 
 		let resizeTimer: ReturnType<typeof setTimeout>;
 		window.addEventListener('resize', () => {
 			clearTimeout(resizeTimer);
 			resizeTimer = setTimeout(() => {
+				animationToken++; // invalidate any in-flight sweep before relayout
+				isAnimating = false;
 				layout();
 				drawSettled();
 			}, 150);
