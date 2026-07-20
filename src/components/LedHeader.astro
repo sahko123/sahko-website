@@ -31,7 +31,7 @@ import { SITE_TITLE } from '../consts';
 	const SPARK_TAU = 90; // ms, how fast an un-reignited spark fades
 	const LOCK_TAU = 90; // ms, how fast a lit/passed column settles to its final state
 	const LOCK_TAIL = 400; // ms, extra time after the sweep for the lock-in to converge
-	const MIN_CELL_SIZE = 2;
+	const MIN_CELL_SIZE = 1;
 	const STORAGE_KEY = 'sahko:led-header-played';
 
 	const wrap = document.querySelector<HTMLDivElement>('.led-header');
@@ -62,18 +62,16 @@ import { SITE_TITLE } from '../consts';
 		function layout() {
 			const width = wrap!.clientWidth;
 			const m = metricsFor(width);
-			cellSize = m.size;
-			gap = m.gap;
 
 			// The breakpoint table above is tuned for how the grid should look,
-			// not for the hard minimum needed to fit "SAHKO" — shrink further if
-			// the viewport is narrower than that, instead of letting it clip.
-			while (
-				letterCols.length * (cellSize + gap) - gap > width &&
-				cellSize > MIN_CELL_SIZE
-			) {
-				cellSize -= 1;
-			}
+			// not for the hard minimum needed to fit "SAHKO" on a viewport
+			// narrower than that — clamp the whole cell pitch (size + gap) down
+			// to whatever fits, shrinking the gap to 0 if even that's needed,
+			// so the word never clips regardless of how narrow the viewport is.
+			const maxPitch = Math.max(1, Math.floor(width / letterCols.length));
+			const pitch = Math.min(m.size + m.gap, maxPitch);
+			gap = Math.min(m.gap, Math.max(0, pitch - 1));
+			cellSize = Math.max(MIN_CELL_SIZE, pitch - gap);
 
 			columns = Math.max(letterCols.length, Math.floor((width + gap) / (cellSize + gap)));
 			letterStart = Math.floor((columns - letterCols.length) / 2);
@@ -135,6 +133,14 @@ import { SITE_TITLE } from '../consts';
 
 			function frame(now: number) {
 				if (token !== animationToken) return; // superseded (e.g. a resize)
+				if (reduceMotion) {
+					// The OS preference flipped on mid-sweep — stop animating now
+					// rather than finishing the ~2.8s run first.
+					drawSettled();
+					sessionStorage.setItem(STORAGE_KEY, '1');
+					isAnimating = false;
+					return;
+				}
 
 				const dt = now - lastTime;
 				lastTime = now;

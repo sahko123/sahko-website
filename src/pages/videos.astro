@@ -36,7 +36,11 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 		if (key) {
 			loadVideos(handle!, key).catch((err) => {
 				console.error(err);
-				container.innerHTML = `<p class="muted">Couldn't load videos right now.</p>`;
+				container.replaceChildren();
+				const error = document.createElement('p');
+				error.className = 'muted';
+				error.textContent = "Couldn't load videos right now.";
+				container.append(error);
 			});
 		}
 	}
@@ -68,14 +72,14 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 		const itemsData = await itemsRes.json();
 
 		const videos = (itemsData.items ?? [])
-			.filter((item: any) => item.snippet?.thumbnails)
 			.map((item: any) => ({
 				id: item.snippet.resourceId.videoId,
 				title: item.snippet.title,
 				thumbnail:
-					item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url,
+					item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
 				publishedAt: item.snippet.publishedAt,
-			}));
+			}))
+			.filter((v: { thumbnail?: string }) => v.thumbnail);
 
 		sessionStorage.setItem(cacheKey, JSON.stringify({ videos, ts: Date.now() }));
 		render(videos);
@@ -98,33 +102,30 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 
 	function videoCard(v: { id: string; title: string; thumbnail: string; publishedAt: string }) {
 		const watchUrl = `https://www.youtube.com/watch?v=${v.id}`;
+		const ytLink = (child: HTMLElement) => {
+			const a = document.createElement('a');
+			a.href = watchUrl;
+			a.target = '_blank';
+			a.rel = 'noopener noreferrer';
+			a.append(child);
+			return a;
+		};
 
-		const card = document.createElement('div');
-		card.className = 'card';
-
-		const thumbLink = document.createElement('a');
-		thumbLink.href = watchUrl;
-		thumbLink.target = '_blank';
-		thumbLink.rel = 'noopener noreferrer';
 		const img = document.createElement('img');
 		img.src = v.thumbnail;
 		img.alt = v.title;
 		img.loading = 'lazy';
-		thumbLink.append(img);
 
-		const titleLink = document.createElement('a');
-		titleLink.href = watchUrl;
-		titleLink.target = '_blank';
-		titleLink.rel = 'noopener noreferrer';
 		const strong = document.createElement('strong');
 		strong.textContent = v.title;
-		titleLink.append(strong);
 
 		const date = document.createElement('p');
 		date.className = 'muted';
 		date.textContent = formatDate(new Date(v.publishedAt));
 
-		card.append(thumbLink, titleLink, date);
+		const card = document.createElement('div');
+		card.className = 'card';
+		card.append(ytLink(img), ytLink(strong), date);
 		return card;
 	}
 </script>
