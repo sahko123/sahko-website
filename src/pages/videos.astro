@@ -24,9 +24,8 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 
 <script>
 	// Everything below runs in the visitor's browser — the server never
-	// touches YouTube. Results are cached in sessionStorage for an hour so
-	// repeat page views within a session don't burn API quota.
-	import { formatDate } from '../format-date';
+	// touches YouTube.
+	import { fetchChannelVideos, videoCard, messageCard } from '../youtube';
 
 	const container = document.getElementById('videos');
 	if (container) {
@@ -34,98 +33,20 @@ import { YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 		const key = container.dataset.key;
 
 		if (key) {
-			loadVideos(handle!, key).catch((err) => {
-				console.error(err);
-				container.replaceChildren();
-				const error = document.createElement('p');
-				error.className = 'muted';
-				error.textContent = "Couldn't load videos right now.";
-				container.append(error);
-			});
+			fetchChannelVideos(handle!, key, 12)
+				.then((videos) => {
+					container.replaceChildren();
+					if (videos.length === 0) {
+						container.append(messageCard('No videos found.'));
+						return;
+					}
+					container.append(...videos.map(videoCard));
+				})
+				.catch((err) => {
+					console.error(err);
+					container.replaceChildren();
+					container.append(messageCard("Couldn't load videos right now."));
+				});
 		}
-	}
-
-	async function loadVideos(handle: string, key: string) {
-		const cacheKey = `yt-videos:${handle}`;
-		const cached = sessionStorage.getItem(cacheKey);
-		if (cached) {
-			const { videos, ts } = JSON.parse(cached);
-			if (Date.now() - ts < 60 * 60 * 1000) {
-				render(videos);
-				return;
-			}
-		}
-
-		const channelRes = await fetch(
-			`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle=${encodeURIComponent(handle)}&key=${key}`
-		);
-		if (!channelRes.ok) throw new Error(`channels.list failed: ${channelRes.status}`);
-		const channelData = await channelRes.json();
-		const uploadsPlaylistId =
-			channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-		if (!uploadsPlaylistId) throw new Error('No uploads playlist found for handle');
-
-		const itemsRes = await fetch(
-			`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=12&playlistId=${uploadsPlaylistId}&key=${key}`
-		);
-		if (!itemsRes.ok) throw new Error(`playlistItems.list failed: ${itemsRes.status}`);
-		const itemsData = await itemsRes.json();
-
-		const videos = (itemsData.items ?? [])
-			.map((item: any) => ({
-				id: item.snippet.resourceId.videoId,
-				title: item.snippet.title,
-				thumbnail:
-					item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
-				publishedAt: item.snippet.publishedAt,
-			}))
-			.filter((v: { thumbnail?: string }) => v.thumbnail);
-
-		sessionStorage.setItem(cacheKey, JSON.stringify({ videos, ts: Date.now() }));
-		render(videos);
-	}
-
-	function render(videos: any[]) {
-		if (!container) return;
-		container.replaceChildren();
-		if (videos.length === 0) {
-			const empty = document.createElement('p');
-			empty.className = 'muted';
-			empty.textContent = 'No videos found.';
-			container.append(empty);
-			return;
-		}
-		for (const v of videos) {
-			container.append(videoCard(v));
-		}
-	}
-
-	function videoCard(v: { id: string; title: string; thumbnail: string; publishedAt: string }) {
-		const watchUrl = `https://www.youtube.com/watch?v=${v.id}`;
-		const ytLink = (child: HTMLElement) => {
-			const a = document.createElement('a');
-			a.href = watchUrl;
-			a.target = '_blank';
-			a.rel = 'noopener noreferrer';
-			a.append(child);
-			return a;
-		};
-
-		const img = document.createElement('img');
-		img.src = v.thumbnail;
-		img.alt = v.title;
-		img.loading = 'lazy';
-
-		const strong = document.createElement('strong');
-		strong.textContent = v.title;
-
-		const date = document.createElement('p');
-		date.className = 'muted';
-		date.textContent = formatDate(new Date(v.publishedAt));
-
-		const card = document.createElement('div');
-		card.className = 'card';
-		card.append(ytLink(img), ytLink(strong), date);
-		return card;
 	}
 </script>

@@ -1,0 +1,104 @@
+---
+const ADS = [
+	'🎰 YOU\'VE WON $1,000,000!!! CLICK NOW!!! 🎰',
+	'💍 HOT SINGLES IN YOUR AREA (there are none)',
+	'🩺 THIS ONE WEIRD TRICK DOCTORS DON\'T WANT YOU TO KNOW',
+	'🖥️ DOWNLOAD MORE RAM — 100% FREE, TOTALLY REAL',
+	'🏆 CONGRATULATIONS! YOU ARE OUR 1,000,000,000th VISITOR',
+	'💎 FREE ROBUX GENERATOR (NO SURVEY) (actually no)',
+	'📞 CALL NOW FOR YOUR FREE CONSULTATION',
+	'🐟 GET RICH QUICK WITH THIS ONE FISH',
+	'🎁 CLAIM YOUR FREE PRIZE BEFORE IT\'S TOO LATE',
+	'🧙 A WIZARD WANTS TO SPEAK WITH YOU',
+	'🚀 TO THE MOON!!! BUY NOW!!!',
+	'🛑 YOUR WARRANTY IS ABOUT TO EXPIRE (you don\'t own a car)',
+];
+
+const COLORS = ['#ff0', '#0ff', '#f0f', '#0f0', '#ff8800', '#ff0055'];
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>🎉 YOU HAVE WON !!! 🎉</title>
+	</head>
+	<body>
+		<marquee style="font-size: 2rem; font-weight: bold; background: black; color: lime;">
+			🎉🎉🎉 CONGRATULATIONS YOU ARE VISITOR #999,999,999 — CLAIM YOUR PRIZE BELOW 🎉🎉🎉
+		</marquee>
+
+		<p style="text-align: center;">
+			<a href="/" style="font-family: sans-serif;">← go back to safety</a>
+		</p>
+
+		<div id="ad-grid">
+			{
+				ADS.map((text, i) => (
+					<div class="ad" style={`background:${COLORS[i % COLORS.length]}`}>
+						<button class="ad-close" aria-label="Close ad">✕</button>
+						{text}
+					</div>
+				))
+			}
+		</div>
+
+		<style>
+			body {
+				margin: 0;
+				background: repeating-linear-gradient(45deg, #ff0 0 10px, #f0f 10px 20px);
+				font-family: 'Comic Sans MS', cursive, sans-serif;
+			}
+
+			#ad-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+				gap: 1rem;
+				padding: 1rem;
+			}
+
+			.ad {
+				position: relative;
+				border: 4px dashed black;
+				padding: 1.5rem 1rem;
+				font-weight: bold;
+				font-size: 1.1rem;
+				text-align: center;
+				animation: blink 1s steps(1) infinite;
+			}
+
+			.ad-close {
+				position: absolute;
+				top: 4px;
+				right: 4px;
+				width: 1.5rem;
+				height: 1.5rem;
+				line-height: 1;
+				border: 2px solid black;
+				background: white;
+				cursor: pointer;
+				font-weight: bold;
+			}
+
+			@keyframes blink {
+				50% {
+					opacity: 0.6;
+				}
+			}
+		</style>
+
+		<script>
+			// The "close" button doesn't close the ad — it spawns another one,
+			// same as every real ad-riddled site from 2006. Delegated on the
+			// grid so cloned buttons work without rebinding anything.
+			const grid = document.getElementById('ad-grid');
+			grid?.addEventListener('click', (e) => {
+				const btn = (e.target as HTMLElement).closest('.ad-close');
+				if (!btn) return;
+				e.preventDefault();
+				const ad = btn.closest('.ad');
+				if (ad) grid.append(ad.cloneNode(true));
+			});
+		</script>
+	</body>
+</html>

@@ -1,14 +1,29 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { SOCIAL_LINKS } from '../consts';
+import { SOCIAL_LINKS, YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 ---
 
 <Layout>
-	<h1>Sahko</h1>
 	<p>
-		Welcome! This is my little corner of the internet — videos, occasional
-		writing, and links to everywhere else I post.
+		Welcome to my website, to those of you who are a bot please click
+		(<a href="/ads/">here</a>), and to those who aren't, please don't. If
+		you are here to look at the random shit I do, I recommend you start
+		clicking randomly.
 	</p>
+
+	<h2>Recommended Video</h2>
+	{
+		!YOUTUBE_API_KEY ? (
+			<p class="muted">
+				Add a YouTube Data API v3 key in <code>src/consts.ts</code> to show
+				the latest video here.
+			</p>
+		) : (
+			<div id="latest-video" data-handle={YOUTUBE_HANDLE} data-key={YOUTUBE_API_KEY}>
+				<p class="muted">Loading…</p>
+			</div>
+		)
+	}
 
 	<h2>Find me</h2>
 	<ul class="plain">
@@ -23,3 +38,28 @@ import { SOCIAL_LINKS } from '../consts';
 		}
 	</ul>
 </Layout>
+
+<script>
+	import { fetchChannelVideos, videoCard, messageCard } from '../youtube';
+
+	const container = document.getElementById('latest-video');
+	if (container) {
+		const handle = container.dataset.handle!;
+		const key = container.dataset.key!;
+
+		fetchChannelVideos(handle, key, 1)
+			.then((videos) => {
+				container.replaceChildren();
+				if (videos.length === 0) {
+					container.append(messageCard('No videos found.'));
+					return;
+				}
+				container.append(videoCard(videos[0]));
+			})
+			.catch((err) => {
+				console.error(err);
+				container.replaceChildren();
+				container.append(messageCard("Couldn't load the latest video right now."));
+			});
+	}
+</script>
