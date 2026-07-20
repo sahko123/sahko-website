@@ -21,7 +21,7 @@ import { SITE_TITLE } from '../consts';
 </style>
 
 <script>
-	import { buildTextColumns, LETTER_HEIGHT } from '../led-font';
+	import { buildTextColumns, buildFaceColumns, LETTER_HEIGHT } from '../led-font';
 
 	const ROWS = LETTER_HEIGHT;
 	const ORANGE = '255,140,0';
@@ -40,6 +40,11 @@ import { SITE_TITLE } from '../consts';
 
 	if (wrap && canvas && ctx) {
 		const letterCols = buildTextColumns('SAHKO');
+		const faceCols = buildFaceColumns();
+		const minGlyphCols = Math.max(letterCols.length, faceCols.length);
+
+		let currentGlyph = letterCols;
+		let showingFace = false;
 
 		let columns = 0;
 		let cellSize = 8;
@@ -64,17 +69,17 @@ import { SITE_TITLE } from '../consts';
 			const m = metricsFor(width);
 
 			// The breakpoint table above is tuned for how the grid should look,
-			// not for the hard minimum needed to fit "SAHKO" on a viewport
+			// not for the hard minimum needed to fit either glyph on a viewport
 			// narrower than that — clamp the whole cell pitch (size + gap) down
 			// to whatever fits, shrinking the gap to 0 if even that's needed,
-			// so the word never clips regardless of how narrow the viewport is.
-			const maxPitch = Math.max(1, Math.floor(width / letterCols.length));
+			// so neither glyph ever clips regardless of how narrow the viewport is.
+			const maxPitch = Math.max(1, Math.floor(width / minGlyphCols));
 			const pitch = Math.min(m.size + m.gap, maxPitch);
 			gap = Math.min(m.gap, Math.max(0, pitch - 1));
 			cellSize = Math.max(MIN_CELL_SIZE, pitch - gap);
 
-			columns = Math.max(letterCols.length, Math.floor((width + gap) / (cellSize + gap)));
-			letterStart = Math.floor((columns - letterCols.length) / 2);
+			columns = Math.max(minGlyphCols, Math.floor((width + gap) / (cellSize + gap)));
+			letterStart = Math.floor((columns - currentGlyph.length) / 2);
 
 			cssWidth = width;
 			cssHeight = ROWS * (cellSize + gap) - gap;
@@ -91,8 +96,19 @@ import { SITE_TITLE } from '../consts';
 
 		function isLit(col: number, row: number) {
 			const i = col - letterStart;
-			if (i < 0 || i >= letterCols.length) return false;
-			return letterCols[i][row];
+			if (i < 0 || i >= currentGlyph.length) return false;
+			return currentGlyph[i][row];
+		}
+
+		function showGlyph(cols: boolean[][], face: boolean) {
+			showingFace = face;
+			currentGlyph = cols;
+			letterStart = Math.floor((columns - cols.length) / 2);
+			if (reduceMotion) {
+				drawSettled();
+			} else {
+				playSweep();
+			}
 		}
 
 		function drawCell(col: number, row: number, alpha: number) {
@@ -221,8 +237,10 @@ import { SITE_TITLE } from '../consts';
 		}
 
 		wrap.addEventListener('mouseenter', () => {
-			if (reduceMotion || isAnimating) return;
-			playSweep();
+			if (!showingFace) showGlyph(faceCols, true);
+		});
+		wrap.addEventListener('mouseleave', () => {
+			if (showingFace) showGlyph(letterCols, false);
 		});
 
 		let resizeTimer: ReturnType<typeof setTimeout>;
