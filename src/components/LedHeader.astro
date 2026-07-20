@@ -1,0 +1,166 @@
+---
+import { SITE_TITLE } from '../consts';
+---
+
+<div class="led-header" role="img" aria-label={SITE_TITLE}>
+	<canvas id="led-canvas"></canvas>
+</div>
+
+<style>
+	.led-header {
+		width: 100%;
+		background: #000;
+		line-height: 0;
+	}
+
+	#led-canvas {
+		display: block;
+		width: 100%;
+	}
+</style>
+
+<script>
+	import { buildTextColumns, LETTER_HEIGHT } from '../led-font';
+
+	const ROWS = LETTER_HEIGHT;
+	const ORANGE = '255,140,0';
+	const BASE_ALPHA = 0.06;
+	const RISE_MS = 70;
+	const DECAY_MS = 260;
+	const SWEEP_MS = 1200;
+	const STORAGE_KEY = 'sahko:led-header-played';
+
+	const wrap = document.querySelector<HTMLDivElement>('.led-header');
+	const canvas = document.getElementById('led-canvas') as HTMLCanvasElement | null;
+	if (wrap && canvas) {
+		const ctx = canvas.getContext('2d')!;
+		const letterCols = buildTextColumns('SAHKO');
+
+		let columns = 0;
+		let cellSize = 8;
+		let gap = 2;
+		let offsetX = 0;
+		let letterStart = 0;
+		let cssWidth = 0;
+		let cssHeight = 0;
+
+		function metricsFor(width: number) {
+			if (width < 400) return { size: 5, gap: 1 };
+			if (width < 640) return { size: 6, gap: 2 };
+			if (width < 1024) return { size: 8, gap: 2 };
+			return { size: 10, gap: 3 };
+		}
+
+		function layout() {
+			const width = wrap!.clientWidth;
+			const m = metricsFor(width);
+			cellSize = m.size;
+			gap = m.gap;
+			columns = Math.max(letterCols.length, Math.floor((width + gap) / (cellSize + gap)));
+			letterStart = Math.floor((columns - letterCols.length) / 2);
+
+			cssWidth = width;
+			cssHeight = ROWS * (cellSize + gap) - gap;
+			offsetX = Math.max(0, (width - (columns * (cellSize + gap) - gap)) / 2);
+
+			const dpr = window.devicePixelRatio || 1;
+			canvas!.width = cssWidth * dpr;
+			canvas!.height = cssHeight * dpr;
+			canvas!.style.height = `${cssHeight}px`;
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		}
+
+		function isLit(col: number, row: number) {
+			const i = col - letterStart;
+			if (i < 0 || i >= letterCols.length) return false;
+			return letterCols[i][row];
+		}
+
+		function drawCell(col: number, row: number, alpha: number) {
+			const x = offsetX + col * (cellSize + gap);
+			const y = row * (cellSize + gap);
+			if (alpha > 0.4) {
+				ctx.shadowColor = `rgba(${ORANGE}, ${Math.min(alpha, 1)})`;
+				ctx.shadowBlur = cellSize * 1.1;
+			} else {
+				ctx.shadowBlur = 0;
+			}
+			ctx.fillStyle = `rgba(${ORANGE}, ${alpha.toFixed(3)})`;
+			if (typeof ctx.roundRect === 'function') {
+				ctx.beginPath();
+				ctx.roundRect(x, y, cellSize, cellSize, Math.min(2, cellSize / 3));
+				ctx.fill();
+			} else {
+				ctx.fillRect(x, y, cellSize, cellSize);
+			}
+		}
+
+		function drawSettled() {
+			ctx.clearRect(0, 0, cssWidth, cssHeight);
+			for (let c = 0; c < columns; c++) {
+				for (let r = 0; r < ROWS; r++) {
+					drawCell(c, r, isLit(c, r) ? 1 : BASE_ALPHA);
+				}
+			}
+			ctx.shadowBlur = 0;
+		}
+
+		function alphaAt(dt: number, target: number) {
+			if (dt < 0) return BASE_ALPHA;
+			if (dt < RISE_MS) return BASE_ALPHA + (1 - BASE_ALPHA) * (dt / RISE_MS);
+			if (dt < RISE_MS + DECAY_MS) {
+				const p = (dt - RISE_MS) / DECAY_MS;
+				return 1 + (target - 1) * p;
+			}
+			return target;
+		}
+
+		function playSweep() {
+			const start = performance.now();
+			const totalRuntime = SWEEP_MS + RISE_MS + DECAY_MS + 100;
+
+			function frame(now: number) {
+				const elapsed = now - start;
+				ctx.clearRect(0, 0, cssWidth, cssHeight);
+				for (let c = 0; c < columns; c++) {
+					const igniteAt = columns > 1 ? (c / (columns - 1)) * SWEEP_MS : 0;
+					const dt = elapsed - igniteAt;
+					for (let r = 0; r < ROWS; r++) {
+						const target = isLit(c, r) ? 1 : BASE_ALPHA;
+						drawCell(c, r, alphaAt(dt, target));
+					}
+				}
+				ctx.shadowBlur = 0;
+
+				if (elapsed < totalRuntime) {
+					requestAnimationFrame(frame);
+				} else {
+					drawSettled();
+					sessionStorage.setItem(STORAGE_KEY, '1');
+				}
+			}
+
+			requestAnimationFrame(frame);
+		}
+
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const alreadyPlayed = sessionStorage.getItem(STORAGE_KEY) === '1';
+
+		layout();
+		if (reduceMotion || alreadyPlayed) {
+			drawSettled();
+			sessionStorage.setItem(STORAGE_KEY, '1');
+		} else {
+			playSweep();
+		}
+
+		let resizeTimer: ReturnType<typeof setTimeout>;
+		window.addEventListener('resize', () => {
+			clearTimeout(resizeTimer);
+			resizeTimer = setTimeout(() => {
+				layout();
+				drawSettled();
+			}, 150);
+		});
+	}
+</script>

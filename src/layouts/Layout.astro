@@ -1,5 +1,6 @@
 ---
 import { SITE_TITLE, SITE_DESCRIPTION, NAV_LINKS } from '../consts';
+import LedHeader from '../components/LedHeader.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -21,12 +22,10 @@ const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
 		<title>{pageTitle}</title>
 	</head>
 	<body>
-		<header class="site">
-			<a class="brand" href="/">{SITE_TITLE}</a>
-			<nav>
-				{NAV_LINKS.map((link) => <a href={link.href}>{link.label}</a>)}
-			</nav>
-		</header>
+		<LedHeader />
+		<nav class="site">
+			{NAV_LINKS.map((link) => <a href={link.href}>{link.label}</a>)}
+		</nav>
 		<main class="wrap">
 			<slot />
 		</main>
