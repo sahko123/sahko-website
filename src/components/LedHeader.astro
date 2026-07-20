@@ -131,11 +131,17 @@ import { SITE_TITLE } from '../consts';
 					const d = c - waveCenter;
 					for (let r = 0; r < ROWS; r++) {
 						const idx = c * ROWS + r;
-						const target = isLit(c, r) ? 1 : BASE_ALPHA;
+						const lit = isLit(c, r);
+						const target = lit ? 1 : BASE_ALPHA;
 
 						if (d > HALF_BAND) {
 							// Wave hasn't reached this column yet.
 							brightness[idx] = BASE_ALPHA;
+						} else if (lit && d <= 0) {
+							// The wave's center has reached this letter pixel — lock
+							// it on for good instead of letting it keep sparking.
+							const lock = 1 - Math.exp(-dt / LOCK_TAU);
+							brightness[idx] += (1 - brightness[idx]) * lock;
 						} else if (d >= -HALF_BAND) {
 							// Inside the wave: random pixels spark, more often near
 							// the center where density reaches 1 (guaranteed on).
