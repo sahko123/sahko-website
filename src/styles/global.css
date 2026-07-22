@@ -125,12 +125,12 @@ ul.plain {
 	margin-bottom: 0.75rem;
 }
 
-.social-links svg {
+.social-links img {
 	display: block;
 	transition: opacity 0.15s;
 }
 
-.social-links a:hover svg {
+.social-links a:hover img {
 	opacity: 0.8;
 }
 

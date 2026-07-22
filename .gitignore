@@ -2,8 +2,8 @@
 dist/
 # generated types
 .astro/
-# generated from src/led-header.client.js — see package.json's build:client script
-public/led-header.js
+# generated from src/site.client.js — see package.json's build:client script
+public/site.js
 
 # dependencies
 node_modules/

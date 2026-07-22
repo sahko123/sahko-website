@@ -21,10 +21,7 @@ import { SITE_TITLE } from '../consts';
 </style>
 
 <!--
-	Plain static file (public/led-header.js), not an Astro-processed inline
-	script — this component renders on every page, so serving it as one
-	external file lets the browser cache it once instead of re-downloading
-	an identical inlined copy per page. Keep public/led-header.js in sync if
-	you change this component's behavior; see its header comment.
+	The script driving this canvas is the shared, cached public/site.js,
+	loaded once from src/layouts/Layout.astro (it also runs the footer clock).
 -->
-<script src="/led-header.js" defer></script>
+

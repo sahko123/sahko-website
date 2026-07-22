@@ -1,7 +1,8 @@
-// Static, unbundled script (served as-is from /led-header.js) so the browser
-// downloads and caches it once instead of getting a fresh inlined copy on
-// every page. Mirrors src/led-font.ts + the script from
-// src/components/LedHeader.astro — keep both in sync if you change one.
+// Static, unbundled site script (minified to public/site.js by
+// `npm run build:client`, served as-is so the browser downloads and caches it
+// once instead of getting a fresh inlined copy on every page). Runs on every
+// page via the <script> tag in src/layouts/Layout.astro. Holds two bits of
+// site-wide chrome behavior: the LED header animation and the footer clock.
 
 const GLYPHS = {
 	S: ['01110', '10001', '10000', '01110', '00001', '10001', '01110'],
@@ -284,4 +285,19 @@ if (wrap && canvas && ctx) {
 			drawSettled();
 		}, 150);
 	});
+}
+
+// Footer clock: a copyright notice with absurdly excessive precision — the
+// full year-down-to-the-second timestamp, ticking live every second.
+const clock = document.getElementById('footer-clock');
+if (clock) {
+	const pad = (n) => String(n).padStart(2, '0');
+	const tick = () => {
+		const d = new Date();
+		clock.textContent =
+			`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+			`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	};
+	tick();
+	setInterval(tick, 1000);
 }

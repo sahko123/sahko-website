@@ -1,7 +1,6 @@
 ---
 import { SITE_TITLE, SITE_DESCRIPTION, NAV_LINKS, SOCIAL_LINKS } from '../consts';
 import LedHeader from '../components/LedHeader.astro';
-import { socialIconId } from '../social-icons';
 import '../styles/global.css';
 
 interface Props {
@@ -11,6 +10,14 @@ interface Props {
 
 const { title, description = SITE_DESCRIPTION } = Astro.props;
 const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
+
+// Initial value for the footer clock, rendered at build time so there's no
+// empty flash before public/site.js takes over and starts ticking it live.
+const now = new Date();
+const pad = (n: number) => String(n).padStart(2, '0');
+const initialStamp =
+	`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+	`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 ---
 
 <html lang="en">
@@ -33,30 +40,33 @@ const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
 		<footer class="site">
 			<ul class="plain social-links">
 				{
-					SOCIAL_LINKS.map((link) => {
-						const iconId = socialIconId(link.href);
-						return (
-							<li>
-								<a
-									href={link.href}
-									target="_blank"
-									rel="noopener noreferrer"
-									aria-label={link.label}
-								>
-									{iconId ? (
-										<svg width="24" height="24" aria-hidden="true">
-											<use href={`/icons.svg#${iconId}`} />
-										</svg>
-									) : (
-										link.label
-									)}
-								</a>
-							</li>
-						);
-					})
+					SOCIAL_LINKS.map((link) => (
+						<li>
+							<a
+								href={link.href}
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label={link.label}
+							>
+								<img
+									src={`https://cdn.simpleicons.org/${link.icon}/${link.color}`}
+									width="24"
+									height="24"
+									alt=""
+								/>
+							</a>
+						</li>
+					))
 				}
 			</ul>
-			<p>&copy; {new Date().getFullYear()} {SITE_TITLE}</p>
+			<p>&copy; <time id="footer-clock">{initialStamp}</time> {SITE_TITLE}</p>
 		</footer>
+		<!--
+			Shared, cached site script: drives the LED header animation and ticks
+			the footer clock. One external file the browser fetches once, rather
+			than an identical copy inlined into every page. Generated (minified)
+			from src/site.client.js by `npm run build:client`.
+		-->
+		<script src="/site.js" defer></script>
 	</body>
 </html>
