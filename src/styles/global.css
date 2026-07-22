@@ -95,6 +95,7 @@ a {
 	border-radius: 50%;
 	background: rgba(0, 0, 0, 0.6);
 	transition: background 0.15s;
+	z-index: 1;
 }
 
 .video-thumb:hover::after {
@@ -109,6 +110,7 @@ a {
 	border-width: 0.7rem 0 0.7rem 1.1rem;
 	border-color: transparent transparent transparent #fff;
 	transform: translate(-50%, -50%);
+	z-index: 2;
 }
 
 ul.plain {
