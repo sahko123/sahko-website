@@ -43,10 +43,12 @@ all traffic rather than the box:
 
 - **Cache Rules** (Rules → Cache Rules): create a rule matching
   `hostname eq "sahko.ie"` with "Eligible for cache" + a sensible Edge TTL
-  (e.g. a few minutes). At this site's size Astro inlines all CSS/JS into
-  each page rather than emitting separately-cacheable hashed assets, so this
-  Cloudflare-level rule — not [`nginx.conf`](nginx.conf)'s per-file-type
-  headers — is what actually keeps most requests off the origin.
+  (e.g. a few minutes) for the HTML pages. The CSS bundle under `/_astro/`
+  is content-hashed and the other static assets (`led-header.js`,
+  `icons.svg`, favicons) are shared across every page, so between this
+  edge rule and [`nginx.conf`](nginx.conf)'s per-file-type headers, most
+  repeat requests — including navigating between pages on the same
+  visit — never reach the origin at all.
 - **Security → WAF → Rate limiting rules**: throttle by IP (e.g. >100
   req/min) with a Challenge or Block action, so a traffic spike or scraper
   can't hammer the small server directly.

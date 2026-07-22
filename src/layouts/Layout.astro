@@ -1,7 +1,7 @@
 ---
 import { SITE_TITLE, SITE_DESCRIPTION, NAV_LINKS, SOCIAL_LINKS } from '../consts';
 import LedHeader from '../components/LedHeader.astro';
-import { socialIcon } from '../social-icons';
+import { socialIconId } from '../social-icons';
 import '../styles/global.css';
 
 interface Props {
@@ -34,7 +34,7 @@ const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
 			<ul class="plain social-links">
 				{
 					SOCIAL_LINKS.map((link) => {
-						const icon = socialIcon(link.href);
+						const iconId = socialIconId(link.href);
 						return (
 							<li>
 								<a
@@ -43,15 +43,9 @@ const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
 									rel="noopener noreferrer"
 									aria-label={link.label}
 								>
-									{icon ? (
-										<svg
-											viewBox="0 0 24 24"
-											width="24"
-											height="24"
-											fill={icon.fill}
-											aria-hidden="true"
-										>
-											<path d={icon.path} />
+									{iconId ? (
+										<svg width="24" height="24" aria-hidden="true">
+											<use href={`/icons.svg#${iconId}`} />
 										</svg>
 									) : (
 										link.label

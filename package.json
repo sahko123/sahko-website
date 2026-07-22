@@ -6,12 +6,18 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "predev": "npm run build:client",
     "dev": "astro dev",
+    "prebuild": "npm run build:client",
     "build": "astro build",
+    "build:client": "esbuild src/led-header.client.js --minify --outfile=public/led-header.js",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
     "astro": "^7.1.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }
