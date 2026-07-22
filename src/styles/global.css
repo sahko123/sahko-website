@@ -118,6 +118,15 @@ ul.plain {
 	padding: 0;
 }
 
+ul.plain svg {
+	display: block;
+	transition: opacity 0.15s;
+}
+
+ul.plain a:hover svg {
+	opacity: 0.8;
+}
+
 footer.site {
 	max-width: 720px;
 	margin: 2rem auto 0;
