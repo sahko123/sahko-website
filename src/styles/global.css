@@ -118,12 +118,17 @@ ul.plain {
 	padding: 0;
 }
 
-ul.plain svg {
+.social-links {
+	display: flex;
+	gap: 1rem;
+}
+
+.social-links svg {
 	display: block;
 	transition: opacity 0.15s;
 }
 
-ul.plain a:hover svg {
+.social-links a:hover svg {
 	opacity: 0.8;
 }
 
