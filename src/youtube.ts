@@ -24,10 +24,33 @@ async function resolveChannelId(handle: string): Promise<string | null> {
 	return match?.[1] ?? null;
 }
 
+// A Short's <link rel="alternate"> points at /shorts/{id} instead of
+// /watch?v={id} — the feed doesn't have a dedicated "is this a Short" field,
+// but this link shape is a reliable stand-in for one.
+function isShort(entry: string): boolean {
+	return /rel="alternate" href="https:\/\/www\.youtube\.com\/shorts\//.test(entry);
+}
+
+function parseEntry(entry: string): Video | null {
+	const id = entry.match(/<yt:videoId>(.*?)<\/yt:videoId>/)?.[1];
+	const title = entry.match(/<title>(.*?)<\/title>/)?.[1];
+	const publishedAt = entry.match(/<published>(.*?)<\/published>/)?.[1];
+	if (!id || !title || !publishedAt) return null;
+
+	return {
+		id,
+		title: decodeXmlEntities(title),
+		thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+		publishedAt,
+	};
+}
+
 /**
- * Fetches the channel's most recent upload at build time via YouTube's public
- * RSS feed — no API key involved. Returns null (and logs a warning) on any
- * failure so a flaky network call during build never breaks the site build.
+ * Fetches the channel's most recent full-length upload at build time via
+ * YouTube's public RSS feed — no API key involved. Prefers the newest
+ * non-Short video, falling back to the newest Short if the feed's recent
+ * entries are Shorts-only. Returns null (and logs a warning) on any failure
+ * so a flaky network call during build never breaks the site build.
  */
 export async function getLatestVideo(handle: string): Promise<Video | null> {
 	try {
@@ -40,20 +63,14 @@ export async function getLatestVideo(handle: string): Promise<Video | null> {
 		if (!feedRes.ok) throw new Error(`Feed fetch failed: ${feedRes.status}`);
 		const xml = await feedRes.text();
 
-		const entry = xml.match(/<entry>([\s\S]*?)<\/entry>/)?.[1];
-		if (!entry) throw new Error('No entries in feed');
+		const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((m) => m[1]);
+		if (entries.length === 0) throw new Error('No entries in feed');
 
-		const id = entry.match(/<yt:videoId>(.*?)<\/yt:videoId>/)?.[1];
-		const title = entry.match(/<title>(.*?)<\/title>/)?.[1];
-		const publishedAt = entry.match(/<published>(.*?)<\/published>/)?.[1];
-		if (!id || !title || !publishedAt) throw new Error('Missing fields in feed entry');
+		const preferred = entries.find((e) => !isShort(e)) ?? entries[0];
+		const video = parseEntry(preferred);
+		if (!video) throw new Error('Missing fields in feed entry');
 
-		return {
-			id,
-			title: decodeXmlEntities(title),
-			thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-			publishedAt,
-		};
+		return video;
 	} catch (err) {
 		console.warn(`[youtube] Could not fetch latest video: ${(err as Error).message}`);
 		return null;
