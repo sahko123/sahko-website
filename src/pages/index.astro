@@ -1,6 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { SOCIAL_LINKS, YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
+import { SOCIAL_LINKS, YOUTUBE_HANDLE } from '../consts';
+import { getLatestVideo } from '../youtube';
+import { formatDate } from '../format-date';
+
+// Fetched once at build time via YouTube's public RSS feed — no API key,
+// nothing shipped to the client. Updates whenever the site is rebuilt.
+const video = await getLatestVideo(YOUTUBE_HANDLE);
 ---
 
 <Layout>
@@ -13,15 +19,26 @@ import { SOCIAL_LINKS, YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 
 	<h2>Recommended Video</h2>
 	{
-		!YOUTUBE_API_KEY ? (
-			<p class="muted">
-				Add a YouTube Data API v3 key in <code>src/consts.ts</code> to show
-				the latest video here.
-			</p>
-		) : (
-			<div id="latest-video" data-handle={YOUTUBE_HANDLE} data-key={YOUTUBE_API_KEY}>
-				<p class="muted">Loading…</p>
+		video ? (
+			<div class="card">
+				<a
+					href={`https://www.youtube.com/watch?v=${video.id}`}
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					<img src={video.thumbnail} alt={video.title} loading="lazy" />
+				</a>
+				<a
+					href={`https://www.youtube.com/watch?v=${video.id}`}
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					<strong>{video.title}</strong>
+				</a>
+				<p class="muted">{formatDate(new Date(video.publishedAt))}</p>
 			</div>
+		) : (
+			<p class="muted">Couldn't load the latest video right now.</p>
 		)
 	}
 
@@ -38,28 +55,3 @@ import { SOCIAL_LINKS, YOUTUBE_HANDLE, YOUTUBE_API_KEY } from '../consts';
 		}
 	</ul>
 </Layout>
-
-<script>
-	import { fetchChannelVideos, videoCard, messageCard } from '../youtube';
-
-	const container = document.getElementById('latest-video');
-	if (container) {
-		const handle = container.dataset.handle!;
-		const key = container.dataset.key!;
-
-		fetchChannelVideos(handle, key, 1)
-			.then((videos) => {
-				container.replaceChildren();
-				if (videos.length === 0) {
-					container.append(messageCard('No videos found.'));
-					return;
-				}
-				container.append(videoCard(videos[0]));
-			})
-			.catch((err) => {
-				console.error(err);
-				container.replaceChildren();
-				container.append(messageCard("Couldn't load the latest video right now."));
-			});
-	}
-</script>

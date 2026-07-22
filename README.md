@@ -1,21 +1,23 @@
 # sahko.ie
 
 Personal/channel site. Astro, static output — no server-side rendering, no
-database. Content lives as markdown; the videos page fetches YouTube data
-client-side, so the server never does real work beyond serving files.
+database. Content lives as markdown; the homepage's latest-video widget is
+fetched once at build time (no API key, nothing shipped to the client), so
+the server never does real work beyond serving files.
 
 ## Structure
 
 ```
 src/
-├── consts.ts             site config, nav, socials, YouTube handle/API key
+├── consts.ts             site config, nav, socials, YouTube handle
+├── youtube.ts            build-time fetch of the latest upload (RSS, no API key)
 ├── layouts/Layout.astro  shared page shell (nav/footer)
 ├── content.config.ts     blog collection schema
 ├── content/blog/*.md     blog posts
 └── pages/
-    ├── index.astro       home / links
+    ├── index.astro       home / links / latest video
     ├── blog/             blog index + [...slug] post pages
-    ├── videos.astro      client-side YouTube feed
+    ├── ads.astro         joke page linked from the homepage's bot line
     └── 404.astro
 ```
 
@@ -44,17 +46,16 @@ Body content here.
 
 It shows up on `/blog/` automatically, sorted by date.
 
-## Enabling the video feed
+## Latest video widget
 
-`src/pages/videos.astro` fetches YouTube in the visitor's browser — the
-server is never involved. To turn it on:
-
-1. Create a YouTube Data API v3 key at
-   [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-2. Restrict the key to **HTTP referrers** = `https://sahko.ie/*` (the key
-   ships in client-side JS and is publicly visible, so this restriction is
-   what keeps it from being abused elsewhere).
-3. Set `YOUTUBE_API_KEY` in `src/consts.ts`.
+`src/youtube.ts`'s `getLatestVideo()` runs at build time: it resolves
+`YOUTUBE_HANDLE` (in `src/consts.ts`) to a channel ID by scraping the
+channel page, then reads the channel's public RSS feed
+(`youtube.com/feeds/videos.xml`) for the newest upload. No API key, no
+client-side request — the result is baked into `index.html` at build time
+and only changes on the next rebuild. If the fetch fails (network hiccup,
+YouTube changing page structure) it logs a warning and the section falls
+back to a "couldn't load" message rather than breaking the build.
 
 ## Deploying
 
