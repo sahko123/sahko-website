@@ -120,7 +120,9 @@ ul.plain {
 
 .social-links {
 	display: flex;
+	justify-content: center;
 	gap: 1rem;
+	margin-bottom: 0.75rem;
 }
 
 .social-links svg {
