@@ -1,25 +1,27 @@
 ---
 import { SITE_TITLE, SITE_DESCRIPTION, NAV_LINKS, SOCIAL_LINKS } from '../consts';
 import LedHeader from '../components/LedHeader.astro';
+import { formatTimestamp } from '../format-date';
 import '../styles/global.css';
 
 interface Props {
 	title?: string;
 	description?: string;
+	// Set on pages with no canonical "real" URL (404) — skips the canonical
+	// link and og:url, and adds a noindex/nofollow robots tag.
+	noindex?: boolean;
 }
 
-const { title, description = SITE_DESCRIPTION } = Astro.props;
+const { title, description = SITE_DESCRIPTION, noindex = false } = Astro.props;
 const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 const ogImageUrl = new URL('/og-image.png', Astro.site);
 
 // Initial value for the footer clock, rendered at build time so there's no
-// empty flash before public/site.js takes over and starts ticking it live.
-const now = new Date();
-const pad = (n: number) => String(n).padStart(2, '0');
-const initialStamp =
-	`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
-	`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+// empty flash before the client script takes over and starts ticking it
+// live. formatTimestamp() is UTC on both sides (see its own comment) so
+// this build-time value and the client-side tick never visibly disagree.
+const initialStamp = formatTimestamp(new Date());
 ---
 
 <html lang="en">
@@ -29,11 +31,12 @@ const initialStamp =
 		<meta name="description" content={description} />
 		<meta name="generator" content={Astro.generator} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="canonical" href={canonicalUrl} />
+		{!noindex && <link rel="canonical" href={canonicalUrl} />}
+		{noindex && <meta name="robots" content="noindex, nofollow" />}
 		<title>{pageTitle}</title>
 
 		<meta property="og:type" content="website" />
-		<meta property="og:url" content={canonicalUrl} />
+		{!noindex && <meta property="og:url" content={canonicalUrl} />}
 		<meta property="og:title" content={pageTitle} />
 		<meta property="og:description" content={description} />
 		<meta property="og:image" content={ogImageUrl} />
@@ -80,8 +83,12 @@ const initialStamp =
 		<!--
 			Shared, cached site script: drives the LED header animation and ticks
 			the footer clock. One external file the browser fetches once, rather
-			than an identical copy inlined into every page. Generated (minified)
-			from src/site.client.js by `npm run build:client`.
+			than an identical copy inlined into every page — a script embedded
+			directly in a shared layout component gets inlined per-page by Astro
+			(confirmed empirically; only a script written in a top-level page file
+			gets its own externalized/shared chunk), so this has to stay a real
+			public/ file. Generated (bundled + minified) from src/site.client.js
+			by `npm run build:client`.
 		-->
 		<script src="/site.js" defer></script>
 	</body>

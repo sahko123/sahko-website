@@ -9,19 +9,23 @@ the server never does real work beyond serving files.
 
 ```
 src/
-├── consts.ts             site config, nav, socials (+icon slugs), YouTube handle
-├── youtube.ts            build-time fetch of the latest upload (RSS, no API key)
-├── site.client.js        readable source for the site-wide client script (LED
-│                         header animation + footer clock) — built (minified) to
-│                         public/site.js by `npm run build:client`, not part of
-│                         the Astro/Vite pipeline. Loaded from Layout.astro.
-├── layouts/Layout.astro  shared page shell (nav / footer / clock / script tag)
-├── content.config.ts     blog collection schema
-├── content/blog/*.md     blog posts
+├── consts.ts               site config, nav, socials (+icon slugs), YouTube handle
+├── youtube.ts              build-time fetch of the latest upload (RSS, no API key)
+├── format-date.ts          shared date/timestamp formatting (blog dates + footer clock)
+├── site.client.js          readable source for the site-wide client script (LED
+│                           header animation + footer clock) — built (bundled +
+│                           minified) to public/site.js by `npm run build:client`,
+│                           not part of the Astro/Vite pipeline. Embedding this
+│                           directly as a script in the shared Layout.astro instead
+│                           gets inlined (duplicated) per page by Astro — confirmed
+│                           empirically — so it has to be a real public/ file.
+├── layouts/Layout.astro    shared page shell (nav / footer / clock / script tag)
+├── content.config.ts       blog collection schema
+├── content/blog/*.md       blog posts
 └── pages/
-    ├── index.astro       home / latest video
-    ├── blog/             blog index + [...slug] post pages
-    ├── ads.astro         joke page linked from the homepage's bot line
+    ├── index.astro         home / latest video
+    ├── blog/               blog index + [...slug] post pages
+    ├── ads.astro           joke page linked from the homepage's bot line
     └── 404.astro
 
 public/
@@ -44,7 +48,7 @@ fetched per-visit from `cdn.simpleicons.org` (by slug/color from
 | `npm install`           | Install dependencies                                           |
 | `npm run dev`            | Dev server at `localhost:4321` (auto-runs `build:client` first) |
 | `npm run build`          | Build static site to `./dist/` (auto-runs `build:client` first) |
-| `npm run build:client`   | Minify `src/site.client.js` → `public/site.js`                 |
+| `npm run build:client`   | Bundle + minify `src/site.client.js` → `public/site.js`        |
 | `npm run preview`        | Preview the production build locally                            |
 
 ## Adding a blog post

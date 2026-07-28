@@ -6,12 +6,17 @@ export interface Video {
 }
 
 function decodeXmlEntities(str: string): string {
+	// &amp; must decode last — decoding it first would turn a literal
+	// "&amp;lt;" (real text "&lt;", double-escaped) into "<" via the &lt;
+	// pass that follows, corrupting titles that contain literal entity text.
 	return str
-		.replace(/&amp;/g, '&')
 		.replace(/&lt;/g, '<')
 		.replace(/&gt;/g, '>')
 		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'");
+		.replace(/&#39;/g, "'")
+		.replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+		.replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+		.replace(/&amp;/g, '&');
 }
 
 async function resolveChannelId(handle: string): Promise<string | null> {
@@ -66,9 +71,11 @@ export async function getLatestVideo(handle: string): Promise<Video | null> {
 		const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((m) => m[1]);
 		if (entries.length === 0) throw new Error('No entries in feed');
 
-		const preferred = entries.find((e) => !isShort(e)) ?? entries[0];
-		const video = parseEntry(preferred);
-		if (!video) throw new Error('Missing fields in feed entry');
+		// Prefer full-length videos over Shorts, but still try every entry in
+		// that order — one malformed entry shouldn't waste the rest of the feed.
+		const ordered = [...entries.filter((e) => !isShort(e)), ...entries.filter(isShort)];
+		const video = ordered.map(parseEntry).find((v): v is Video => v !== null);
+		if (!video) throw new Error('No entry in the feed had all required fields');
 
 		return video;
 	} catch (err) {

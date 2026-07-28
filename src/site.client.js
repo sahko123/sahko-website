@@ -1,8 +1,10 @@
-// Static, unbundled site script (minified to public/site.js by
-// `npm run build:client`, served as-is so the browser downloads and caches it
-// once instead of getting a fresh inlined copy on every page). Runs on every
-// page via the <script> tag in src/layouts/Layout.astro. Holds two bits of
-// site-wide chrome behavior: the LED header animation and the footer clock.
+// Site-wide client script, loaded once from src/layouts/Layout.astro via a
+// relative <script src>. Astro/Vite bundles this as a shared, content-hashed
+// chunk reused across every page — the browser fetches and caches it once
+// instead of getting a fresh copy per page. Holds two bits of site-wide
+// chrome behavior: the LED header animation and the footer clock.
+
+import { formatTimestamp } from './format-date';
 
 const GLYPHS = {
 	S: ['01110', '10001', '10000', '01110', '00001', '10001', '01110'],
@@ -12,7 +14,6 @@ const GLYPHS = {
 	O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
 };
 
-const LETTER_WIDTH = 5;
 const LETTER_HEIGHT = 7;
 const LETTER_GAP = 1;
 
@@ -91,10 +92,11 @@ const ctx = canvas ? canvas.getContext('2d') : null;
 if (wrap && canvas && ctx) {
 	const letterCols = buildTextColumns('SAHKO');
 	const faceCols = buildFaceColumns();
-	const minGlyphCols = Math.max(letterCols.length, faceCols.length);
+	// The wider of the two glyphs, so the grid always has room for whichever
+	// one is currently showing (and for the one it might swap to on hover).
+	const widestGlyphCols = Math.max(letterCols.length, faceCols.length);
 
 	let currentGlyph = letterCols;
-	let showingFace = false;
 
 	let columns = 0;
 	let cellSize = 8;
@@ -105,7 +107,6 @@ if (wrap && canvas && ctx) {
 	let cssHeight = 0;
 	let brightness = new Float32Array(0);
 	let animationToken = 0;
-	let isAnimating = false;
 
 	function metricsFor(width) {
 		if (width < 400) return { size: 5, gap: 1 };
@@ -118,12 +119,12 @@ if (wrap && canvas && ctx) {
 		const width = wrap.clientWidth;
 		const m = metricsFor(width);
 
-		const maxPitch = Math.max(1, Math.floor(width / minGlyphCols));
+		const maxPitch = Math.max(1, Math.floor(width / widestGlyphCols));
 		const pitch = Math.min(m.size + m.gap, maxPitch);
 		gap = Math.min(m.gap, Math.max(0, pitch - 1));
 		cellSize = Math.max(MIN_CELL_SIZE, pitch - gap);
 
-		columns = Math.max(minGlyphCols, Math.floor((width + gap) / (cellSize + gap)));
+		columns = Math.max(widestGlyphCols, Math.floor((width + gap) / (cellSize + gap)));
 		letterStart = Math.floor((columns - currentGlyph.length) / 2);
 
 		cssWidth = width;
@@ -145,8 +146,7 @@ if (wrap && canvas && ctx) {
 		return currentGlyph[i][row];
 	}
 
-	function showGlyph(cols, face) {
-		showingFace = face;
+	function showGlyph(cols) {
 		currentGlyph = cols;
 		letterStart = Math.floor((columns - cols.length) / 2);
 		if (reduceMotion) {
@@ -187,7 +187,6 @@ if (wrap && canvas && ctx) {
 
 	function playSweep() {
 		const token = ++animationToken;
-		isAnimating = true;
 		const start = performance.now();
 		const totalRuntime = SWEEP_MS + LOCK_TAIL;
 		let lastTime = start;
@@ -197,7 +196,6 @@ if (wrap && canvas && ctx) {
 			if (reduceMotion) {
 				drawSettled();
 				sessionStorage.setItem(STORAGE_KEY, '1');
-				isAnimating = false;
 				return;
 			}
 
@@ -245,7 +243,6 @@ if (wrap && canvas && ctx) {
 			} else {
 				drawSettled();
 				sessionStorage.setItem(STORAGE_KEY, '1');
-				isAnimating = false;
 			}
 		}
 
@@ -269,10 +266,10 @@ if (wrap && canvas && ctx) {
 	}
 
 	wrap.addEventListener('mouseenter', () => {
-		if (!showingFace) showGlyph(faceCols, true);
+		if (currentGlyph !== faceCols) showGlyph(faceCols);
 	});
 	wrap.addEventListener('mouseleave', () => {
-		if (showingFace) showGlyph(letterCols, false);
+		if (currentGlyph === faceCols) showGlyph(letterCols);
 	});
 
 	let resizeTimer;
@@ -280,7 +277,6 @@ if (wrap && canvas && ctx) {
 		clearTimeout(resizeTimer);
 		resizeTimer = setTimeout(() => {
 			animationToken++; // invalidate any in-flight sweep before relayout
-			isAnimating = false;
 			layout();
 			drawSettled();
 		}, 150);
@@ -288,15 +284,13 @@ if (wrap && canvas && ctx) {
 }
 
 // Footer clock: a copyright notice with absurdly excessive precision — the
-// full year-down-to-the-second timestamp, ticking live every second.
+// full year-down-to-the-second timestamp, ticking live every second. Uses
+// the same formatTimestamp() as Layout.astro's build-time initial render —
+// see that function's comment for why both sides need to agree on UTC.
 const clock = document.getElementById('footer-clock');
 if (clock) {
-	const pad = (n) => String(n).padStart(2, '0');
 	const tick = () => {
-		const d = new Date();
-		clock.textContent =
-			`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
-			`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+		clock.textContent = formatTimestamp(new Date());
 	};
 	tick();
 	setInterval(tick, 1000);

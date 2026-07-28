@@ -10,7 +10,7 @@
     "dev": "astro dev",
     "prebuild": "npm run build:client",
     "build": "astro build",
-    "build:client": "esbuild src/site.client.js --minify --outfile=public/site.js",
+    "build:client": "esbuild src/site.client.js --bundle --minify --outfile=public/site.js",
     "preview": "astro preview",
     "astro": "astro"
   },
