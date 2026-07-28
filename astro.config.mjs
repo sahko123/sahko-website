@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
@@ -12,4 +13,11 @@ export default defineConfig({
 		// file the browser fetches once and caches across the whole site.
 		inlineStylesheets: 'never',
 	},
+	integrations: [
+		sitemap({
+			// /ads/ is a hidden gag page (linked once, from the homepage's bot
+			// line) — it has no business being indexed or showing up in search.
+			filter: (page) => !page.includes('/ads/'),
+		}),
+	],
 });

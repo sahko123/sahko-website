@@ -25,7 +25,10 @@ src/
     └── 404.astro
 
 public/
-└── site.js  generated — do not edit directly, gitignored
+├── site.js       generated — do not edit directly, gitignored
+├── og-image.png  social share preview (1200x630), rendered from the LED font
+├── robots.txt    disallows /ads/, points at the sitemap
+└── favicon.{ico,svg}
 ```
 
 `public/site.js` is served as a plain static file (not inlined per-page) so
@@ -91,6 +94,19 @@ Every subsequent page view in that session is substantially cheaper — for
 a personal site where visitors click around, that's the right side to be
 on. The icon CDN is the one third-party dependency: it sees each visitor's
 IP, and icons won't render if it's down.
+
+## SEO
+
+`Layout.astro` sets a canonical link plus Open Graph / Twitter card tags
+(title, description, and `og-image.png`) on every page, using each page's
+own `title`/`description` props — see a blog post's `<Layout title=...
+description=...>` call for an example. `@astrojs/sitemap` generates
+`sitemap-index.xml` at build time from the real routes, filtered to exclude
+`/ads/`; `public/robots.txt` disallows `/ads/` too and points crawlers at
+the sitemap. `og-image.png` was rendered once by loading the LED font's
+pixel data into a throwaway canvas page and exporting it — not regenerated
+by the build, so if the site's name or branding ever changes, it needs to
+be redone by hand (or scripted, if it becomes worth it).
 
 ## Deploying
 
