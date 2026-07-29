@@ -1,7 +1,6 @@
 ---
 import { SITE_TITLE, SITE_DESCRIPTION, NAV_LINKS, SOCIAL_LINKS } from '../consts';
 import LedHeader from '../components/LedHeader.astro';
-import { formatTimestamp } from '../format-date';
 import '../styles/global.css';
 
 interface Props {
@@ -16,12 +15,6 @@ const { title, description = SITE_DESCRIPTION, noindex = false } = Astro.props;
 const pageTitle = title ? `${title} — ${SITE_TITLE}` : SITE_TITLE;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 const ogImageUrl = new URL('/og-image.png', Astro.site);
-
-// Initial value for the footer clock, rendered at build time so there's no
-// empty flash before the client script takes over and starts ticking it
-// live. formatTimestamp() is UTC on both sides (see its own comment) so
-// this build-time value and the client-side tick never visibly disagree.
-const initialStamp = formatTimestamp(new Date());
 ---
 
 <html lang="en">
@@ -78,7 +71,14 @@ const initialStamp = formatTimestamp(new Date());
 					))
 				}
 			</ul>
-			<p>&copy; <time id="footer-clock">{initialStamp}</time> {SITE_TITLE}</p>
+			<!--
+				No build-time value here on purpose: a static build can't know a
+				visitor's timezone in advance, so there's nothing worth guessing —
+				site.client.js fills this in with the visitor's actual local time
+				within milliseconds of load, rather than showing a value in some
+				other timezone that would then visibly jump once corrected.
+			-->
+			<p>&copy; <time id="footer-clock"></time> {SITE_TITLE}</p>
 		</footer>
 		<!--
 			Shared, cached site script: drives the LED header animation and ticks

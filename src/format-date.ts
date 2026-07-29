@@ -7,16 +7,17 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Full year-down-to-the-second timestamp for the footer clock, shared by
- * Layout.astro's build-time initial render and site.client.js's live tick.
- * Uses UTC on both sides — the build machine and a visitor's browser are
- * essentially never in the same timezone, so anything based on local time
- * would visibly jump the instant the client-side tick takes over.
+ * Full year-down-to-the-second timestamp for the footer clock, in the
+ * visitor's own local time. Only ever called client-side (site.client.js) —
+ * a static build can't know a visitor's timezone in advance, so Layout.astro
+ * renders no guess at all and lets the client fill in the real value on
+ * load, rather than rendering a build-time value in some other timezone
+ * that would then visibly jump once corrected.
  */
 export function formatTimestamp(date: Date): string {
 	const pad = (n: number) => String(n).padStart(2, '0');
 	return (
-		`${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ` +
-		`${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())} UTC`
+		`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+		`${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 	);
 }

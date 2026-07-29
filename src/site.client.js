@@ -284,9 +284,9 @@ if (wrap && canvas && ctx) {
 }
 
 // Footer clock: a copyright notice with absurdly excessive precision — the
-// full year-down-to-the-second timestamp, ticking live every second. Uses
-// the same formatTimestamp() as Layout.astro's build-time initial render —
-// see that function's comment for why both sides need to agree on UTC.
+// visitor's own full year-down-to-the-second local time, ticking live every
+// second. Layout.astro renders the <time> element empty on purpose — see
+// formatTimestamp()'s comment for why.
 const clock = document.getElementById('footer-clock');
 if (clock) {
 	const tick = () => {
