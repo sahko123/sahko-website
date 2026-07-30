@@ -12,44 +12,39 @@ src/
 ├── consts.ts               site config, nav, socials (+icon slugs), YouTube handle
 ├── youtube.ts              build-time fetch of the latest upload (RSS, no API key)
 ├── format-date.ts          shared date/timestamp formatting (blog dates + footer clock)
-├── site.client.js          readable source for the site-wide client script (LED
-│                           header animation + footer clock) — built (bundled +
-│                           minified) to public/site.js by `npm run build:client`,
-│                           not part of the Astro/Vite pipeline. Embedding this
-│                           directly as a script in the shared Layout.astro instead
-│                           gets inlined (duplicated) per page by Astro — confirmed
-│                           empirically — so it has to be a real public/ file.
+├── site.client.js          site-wide client script (LED header animation,
+│                           video carousel, footer clock). Loaded from
+│                           Layout.astro; Astro bundles/minifies/hashes it into
+│                           a single shared /_astro/*.js chunk.
 ├── layouts/Layout.astro    shared page shell (nav / footer / clock / script tag)
 ├── content.config.ts       blog collection schema
 ├── content/blog/*.md       blog posts
 └── pages/
-    ├── index.astro         home / latest video
+    ├── index.astro         home / video carousel
     ├── blog/               blog index + [...slug] post pages
     ├── ads.astro           joke page linked from the homepage's bot line
     └── 404.astro
 
 public/
-├── site.js       generated — do not edit directly, gitignored
 ├── og-image.png  social share preview (1200x630), rendered from the LED font
 ├── robots.txt    disallows /ads/, points at the sitemap
 └── favicon.{ico,svg}
 ```
 
-`public/site.js` is served as a plain static file (not inlined per-page) so
-the browser fetches and caches it once instead of downloading an identical
-copy on every page — see "Reducing page weight" below. Social icons are
-fetched per-visit from `cdn.simpleicons.org` (by slug/color from
-`SOCIAL_LINKS`) rather than self-hosted.
+Everything in `public/` is served verbatim at the site root. Note these files
+are *not* content-hashed, so they're cached for a day rather than forever
+(see `deploy/nginx.conf`) — a change to one takes up to 24h to be guaranteed
+visible. Social icons aren't here at all: they're fetched per-visit from
+`cdn.simpleicons.org` (by slug/color from `SOCIAL_LINKS`).
 
 ## Commands
 
-| Command                | Action                                                        |
-| :---------------------- | :-------------------------------------------------------------- |
-| `npm install`           | Install dependencies                                           |
-| `npm run dev`            | Dev server at `localhost:4321` (auto-runs `build:client` first) |
-| `npm run build`          | Build static site to `./dist/` (auto-runs `build:client` first) |
-| `npm run build:client`   | Bundle + minify `src/site.client.js` → `public/site.js`        |
-| `npm run preview`        | Preview the production build locally                            |
+| Command           | Action                                  |
+| :----------------- | :--------------------------------------- |
+| `npm install`      | Install dependencies                     |
+| `npm run dev`       | Dev server at `localhost:4321`           |
+| `npm run build`     | Build static site to `./dist/`           |
+| `npm run preview`   | Preview the production build locally     |
 
 ## Adding a blog post
 
@@ -78,26 +73,43 @@ and only changes on the next rebuild. If the fetch fails (network hiccup,
 YouTube changing page structure) it logs a warning and the section falls
 back to a "couldn't load" message rather than breaking the build.
 
-## Reducing page weight
+## Caching and page weight
 
-Astro would otherwise inline every page's CSS/JS directly into its HTML —
-fine for a single page, wasteful once every page re-ships an identical
-copy of the same client script and global styles. `astro.config.mjs` sets
-`build.inlineStylesheets: 'never'` so CSS is always a shared,
-content-hashed `/_astro/*.css` file, and the site-wide client behavior
-(LED header animation + footer clock) is a plain static `public/site.js`
-instead of an Astro component script. Both are fetched once and cached
-(see `deploy/nginx.conf`) instead of downloaded fresh on every page
-navigation. Social icons are likewise not shipped in the HTML — they're
-`<img>` tags pointing at `cdn.simpleicons.org`.
+By default Astro inlines small CSS/JS straight into each page's HTML —
+fine for one page, wasteful once every page re-ships an identical copy,
+and (worse) an inlined asset has no URL to cache or cache-bust. Two config
+settings in `astro.config.mjs` force both out to shared files:
 
-The trade-off: a first-ever page view now costs a few more HTTP requests
-than one fully-inlined page did, since the browser fetches the shared
-files (and the icon CDN) alongside the page's own (now much smaller) HTML.
-Every subsequent page view in that session is substantially cheaper — for
-a personal site where visitors click around, that's the right side to be
-on. The icon CDN is the one third-party dependency: it sees each visitor's
-IP, and icons won't render if it's down.
+- `build.inlineStylesheets: 'never'` — CSS is always a shared
+  `/_astro/*.css` file.
+- `vite.build.assetsInlineLimit: 0` — the client script is always a shared
+  `/_astro/*.js` file. Without this, Vite inlines anything under 4096
+  bytes, which silently flips behavior as the bundle grows or shrinks
+  past that line.
+
+Both land in `/_astro/` with a **content hash in the filename**, so a new
+build always produces a new URL. That's what makes
+`Cache-Control: immutable, max-age=1y` safe for them in `deploy/nginx.conf`:
+a stale copy is impossible, because changed content means a changed URL.
+
+This matters more than it sounds. An earlier version of this site served
+the script as an unhashed `/site.js` cached for a day — after a deploy,
+browsers *and* Cloudflare's edge would both keep serving the previous
+version from cache for up to 24h, with no way to tell it had changed
+short of a manual cache purge. Hashed filenames remove that failure mode
+entirely.
+
+Files in `public/` (favicons, OG image) are the exception — hand-placed,
+so unhashed, so capped at a day's cache. Social icons aren't shipped in
+the HTML at all; they're `<img>` tags pointing at `cdn.simpleicons.org`.
+
+The trade-off: a first-ever page view costs a few more HTTP requests than
+a fully-inlined page, since the browser fetches the shared files (and the
+icon CDN) alongside the page's own now-much-smaller HTML. Every subsequent
+page view in that session is substantially cheaper — for a personal site
+where visitors click around, that's the right side to be on. The icon CDN
+is the one third-party dependency: it sees each visitor's IP, and icons
+won't render if it's down.
 
 ## SEO
 

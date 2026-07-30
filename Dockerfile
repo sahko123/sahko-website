@@ -16,8 +16,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-# Runs prebuild (esbuild-bundles src/site.client.js) then astro build —
-# same `npm run build` as local/manual deploys, just executing here instead.
+# Same `npm run build` as a local build, just executing here instead.
 RUN npm run build
 
 FROM nginx:1-alpine

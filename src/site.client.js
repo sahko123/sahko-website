@@ -1,8 +1,9 @@
 // Site-wide client script, loaded once from src/layouts/Layout.astro via a
 // relative <script src>. Astro/Vite bundles this as a shared, content-hashed
 // chunk reused across every page — the browser fetches and caches it once
-// instead of getting a fresh copy per page. Holds two bits of site-wide
-// chrome behavior: the LED header animation and the footer clock.
+// instead of getting a fresh copy per page. Holds the site-wide chrome
+// behavior: the LED header animation, the video carousel, and the footer
+// clock.
 
 import { formatTimestamp } from './format-date';
 

@@ -81,15 +81,14 @@ const ogImageUrl = new URL('/og-image.png', Astro.site);
 			<p>&copy; <time id="footer-clock"></time> {SITE_TITLE}</p>
 		</footer>
 		<!--
-			Shared, cached site script: drives the LED header animation and ticks
-			the footer clock. One external file the browser fetches once, rather
-			than an identical copy inlined into every page — a script embedded
-			directly in a shared layout component gets inlined per-page by Astro
-			(confirmed empirically; only a script written in a top-level page file
-			gets its own externalized/shared chunk), so this has to stay a real
-			public/ file. Generated (bundled + minified) from src/site.client.js
-			by `npm run build:client`.
+			Shared site script: drives the LED header animation, the video
+			carousel, and the footer clock. Astro/Vite bundles, minifies and
+			content-hashes this into a single /_astro/*.js chunk that every page
+			references identically — fetched once, cached forever (the hash in
+			the filename means a new build is always a new URL, so it can never
+			serve stale). astro.config.mjs pins assetsInlineLimit: 0 to keep
+			this external regardless of how small the bundle gets.
 		-->
-		<script src="/site.js" defer></script>
+		<script src="../site.client.js"></script>
 	</body>
 </html>

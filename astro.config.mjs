@@ -13,6 +13,18 @@ export default defineConfig({
 		// file the browser fetches once and caches across the whole site.
 		inlineStylesheets: 'never',
 	},
+	vite: {
+		build: {
+			// Same reasoning as inlineStylesheets above, for the client script.
+			// Vite inlines assets under 4096 bytes by default, which silently
+			// flips behavior based on bundle size — the site script has already
+			// crossed that line in both directions during development, and an
+			// inlined copy is both duplicated per page and unhashed (so it
+			// can't be cache-busted). 0 disables inlining entirely, so the
+			// script is always an external, content-hashed /_astro/ file.
+			assetsInlineLimit: 0,
+		},
+	},
 	integrations: [
 		sitemap({
 			// /ads/ is a hidden gag page (linked once, from the homepage's bot

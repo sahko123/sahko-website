@@ -98,12 +98,13 @@ all traffic rather than the box:
 
 - **Cache Rules** (Rules → Cache Rules): create a rule matching
   `hostname eq "sahko.ie"` with "Eligible for cache" + a sensible Edge TTL
-  (e.g. a few minutes) for the HTML pages. The CSS bundle under `/_astro/`
-  is content-hashed and the other static assets (`site.js`, favicons) are
-  shared across every page, so between this edge rule and
+  (e.g. a few minutes) for the HTML pages. Everything under `/_astro/`
+  (the CSS bundle and the client script) is content-hashed and shared
+  across every page, so between this edge rule and
   [`nginx.conf`](nginx.conf)'s per-file-type headers, most repeat
   requests — including navigating between pages on the same visit — never
-  reach the origin at all.
+  reach the origin at all. Because those filenames change whenever their
+  contents do, caching them aggressively can't serve anything stale.
 - **Security → WAF → Rate limiting rules**: throttle by IP (e.g. >100
   req/min) with a Challenge or Block action, so a traffic spike or scraper
   can't hammer the small board directly.
@@ -149,8 +150,19 @@ docker run --rm -p 8080:8080 sahko-website
 - **Site loads but styling/JS missing** — very unlikely now that the image
   is built by CI from a clean checkout every time, but if it happens, check
   the Actions log for the build step rather than anything on the board.
-- **Changes not showing** — Cloudflare edge cache. Purge it in the
-  dashboard, or wait out the Edge TTL you set.
+- **HTML updated but CSS/JS behaviour is stale** — shouldn't be possible
+  now: those files are content-hashed, so new content always means a new
+  URL that nothing can have cached. If you *do* see it, the page is
+  probably referencing an old filename, which points at a stale HTML
+  response rather than a stale asset — see the next item. (This was a real
+  bug once, when the script was served unhashed as `/site.js` with a
+  day-long TTL; hashed filenames are what fixed it.)
+- **Changes not showing** — HTML itself is only cached briefly, so this is
+  usually the Cloudflare edge holding the old page. Purge in the dashboard
+  (Caching → Configuration → Purge Everything) or wait out the Edge TTL.
+  `curl -I http://192.168.1.187:8080` hits the origin directly, bypassing
+  Cloudflare — if that shows the new version, it's purely an edge-cache
+  lag and not a deploy problem.
 - **All visitors log as one internal IP** — `real_ip_header
   CF-Connecting-IP` in `nginx.conf` handles this, but only for traffic
   arriving through Cloudflare.
