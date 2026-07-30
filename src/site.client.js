@@ -283,6 +283,30 @@ if (wrap && canvas && ctx) {
 	});
 }
 
+// Video carousel: auto-advances through the homepage's recommended videos.
+// Respects prefers-reduced-motion by just showing the first video, static.
+const carousel = document.getElementById('video-carousel');
+if (carousel) {
+	const slides = [...carousel.querySelectorAll('.carousel-slide')];
+	const dots = [...carousel.querySelectorAll('.carousel-dot')];
+	if (slides.length > 0) {
+		slides[0].classList.add('active');
+		dots[0]?.classList.add('active');
+	}
+
+	const carouselReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	if (slides.length > 1 && !carouselReduceMotion) {
+		let index = 0;
+		setInterval(() => {
+			slides[index].classList.remove('active');
+			dots[index]?.classList.remove('active');
+			index = (index + 1) % slides.length;
+			slides[index].classList.add('active');
+			dots[index]?.classList.add('active');
+		}, 5000);
+	}
+}
+
 // Footer clock: a copyright notice with absurdly excessive precision — the
 // visitor's own full year-down-to-the-second local time, ticking live every
 // second. Layout.astro renders the <time> element empty on purpose — see

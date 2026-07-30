@@ -51,13 +51,13 @@ function parseEntry(entry: string): Video | null {
 }
 
 /**
- * Fetches the channel's most recent full-length upload at build time via
- * YouTube's public RSS feed — no API key involved. Prefers the newest
- * non-Short video, falling back to the newest Short if the feed's recent
- * entries are Shorts-only. Returns null (and logs a warning) on any failure
- * so a flaky network call during build never breaks the site build.
+ * Fetches up to `count` of the channel's most recent full-length uploads at
+ * build time via YouTube's public RSS feed — no API key involved. Prefers
+ * non-Short videos, falling back to Shorts only if there aren't enough
+ * full-length ones to fill the count. Returns [] (and logs a warning) on
+ * any failure so a flaky network call during build never breaks the build.
  */
-export async function getLatestVideo(handle: string): Promise<Video | null> {
+export async function getLatestVideos(handle: string, count: number): Promise<Video[]> {
 	try {
 		const channelId = await resolveChannelId(handle);
 		if (!channelId) throw new Error(`Could not resolve channel ID for @${handle}`);
@@ -74,12 +74,12 @@ export async function getLatestVideo(handle: string): Promise<Video | null> {
 		// Prefer full-length videos over Shorts, but still try every entry in
 		// that order — one malformed entry shouldn't waste the rest of the feed.
 		const ordered = [...entries.filter((e) => !isShort(e)), ...entries.filter(isShort)];
-		const video = ordered.map(parseEntry).find((v): v is Video => v !== null);
-		if (!video) throw new Error('No entry in the feed had all required fields');
+		const videos = ordered.map(parseEntry).filter((v): v is Video => v !== null);
+		if (videos.length === 0) throw new Error('No entry in the feed had all required fields');
 
-		return video;
+		return videos.slice(0, count);
 	} catch (err) {
-		console.warn(`[youtube] Could not fetch latest video: ${(err as Error).message}`);
-		return null;
+		console.warn(`[youtube] Could not fetch latest videos: ${(err as Error).message}`);
+		return [];
 	}
 }

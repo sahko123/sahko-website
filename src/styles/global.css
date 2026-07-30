@@ -113,6 +113,47 @@ a {
 	z-index: 2;
 }
 
+.carousel {
+	display: grid;
+	margin-bottom: 1rem;
+}
+
+/* All slides stack in the same grid cell — the track auto-sizes to the
+   tallest one, so switching slides never jumps the layout even though
+   titles/thumbnails vary in height. */
+.carousel-slide {
+	grid-area: 1 / 1;
+	margin-bottom: 0;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.4s ease;
+}
+
+.carousel-slide.active {
+	opacity: 1;
+	visibility: visible;
+}
+
+.carousel-dots {
+	grid-row: 2;
+	display: flex;
+	justify-content: center;
+	gap: 0.4rem;
+	margin-top: 0.75rem;
+}
+
+.carousel-dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--border);
+	transition: background 0.3s;
+}
+
+.carousel-dot.active {
+	background: var(--accent);
+}
+
 ul.plain {
 	list-style: none;
 	padding: 0;
