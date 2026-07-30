@@ -1,21 +1,27 @@
-# nginx container serving the built site on the ZimaBoard.
+# Site container + Watchtower on the ZimaBoard, pulling from ghcr.io
+# instead of a manually-copied dist/ + nginx.conf.
+#
+# .github/workflows/deploy.yml builds and publishes the image (Dockerfile
+# at the repo root — it bakes in both the built site and nginx.conf, so
+# there's nothing left to keep in sync on the board by hand). Watchtower
+# polls ghcr.io and pulls + restarts sahko-website when a new image shows
+# up — the whole path from `git push` to it being live is automatic,
+# typically within one poll interval.
 #
 # ZimaOS is Docker-first and its own Caddy gateway already owns host port
 # 80, so this publishes on 8080 instead. Expected layout on the box:
 #
 #   /DATA/AppData/sahko-website/
-#   ├── docker-compose.yml   <- this file
-#   ├── nginx.conf           <- from deploy/nginx.conf
-#   └── dist/                <- the built site (rsync/copy target)
+#   └── docker-compose.yml   <- this file (the only file needed here now)
 #
-# Bring it up with:  docker compose up -d
-# Update the site:   replace dist/, then  docker compose restart
+# One-time setup:  docker compose up -d
+# After that: nothing — pushes to master reach the board on their own.
+# Manual pull if you don't want to wait for Watchtower's next poll:
+#   docker compose pull sahko-website && docker compose up -d sahko-website
 
 services:
   sahko-website:
-    # Major-version pin: picks up patch/security updates on an explicit
-    # `docker compose pull`, without a surprise major bump breaking config.
-    image: nginx:1-alpine
+    image: ghcr.io/sahko123/sahko-website:latest
     container_name: sahko-website
     restart: unless-stopped
     ports:
@@ -23,7 +29,20 @@ services:
       # container can reach it via the host's LAN IP — from inside that
       # container, "localhost" is itself, not the ZimaBoard.
       - '8080:8080'
+    labels:
+      # Watchtower only touches containers carrying this label (see its
+      # --label-enable flag below) — other apps on this board (Jellyfin
+      # etc.) are never auto-updated by this Watchtower instance.
+      - com.centurylabs.watchtower.enable=true
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: sahko-watchtower
+    restart: unless-stopped
     volumes:
-      # Read-only: nginx only ever serves these, never writes them.
-      - ./dist:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --label-enable --cleanup
+    # --interval 300: poll ghcr.io every 5 minutes.
+    # --label-enable: only manage containers with the label above.
+    # --cleanup: remove the old image after a successful update, so this
+    # doesn't slowly fill the board's disk with stale versions.

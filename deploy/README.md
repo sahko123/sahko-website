@@ -7,10 +7,23 @@ to compute per request.
 ## The setup
 
 ```
-Internet → Cloudflare edge → cloudflared (ZimaOS app) → nginx container :8080 → dist/
+git push
+  → GitHub Actions builds the site + bakes it into a Docker image (Dockerfile)
+  → publishes to ghcr.io
+Internet → Cloudflare edge → cloudflared (ZimaOS app) → nginx container :8080
+                                                              ↑
+                                        Watchtower polls ghcr.io every 5 min,
+                                        pulls + restarts nginx when it sees
+                                        a new image
 ```
 
-Both cloudflared and nginx run as Docker containers on the ZimaBoard
+Deploys are push-to-deploy: commit, push to `master`, and the new version
+reaches the board on its own within one Watchtower poll — no manual copy
+step. SSH is disabled on the board, so GitHub Actions can't reach in
+directly; publishing an image and having the board *pull* it is what makes
+this work without SSH.
+
+cloudflared and the site's containers all run on the ZimaBoard
 (`192.168.1.187`). ZimaOS is Docker-first and its own Caddy gateway already
 owns host port 80, which is why the site gets port **8080** instead.
 
@@ -18,20 +31,31 @@ owns host port 80, which is why the site gets port **8080** instead.
 `localhost:8080` in its config points at *itself*, not the ZimaBoard. The
 tunnel ingress must use the host's LAN IP (`192.168.1.187:8080`).
 
-## 1. First-time setup on the ZimaBoard
+## 1. One-time: make the GHCR package public
 
-Create the app directory and drop in the two config files
-([`docker-compose.yml`](docker-compose.yml) and [`nginx.conf`](nginx.conf)):
+The first push to `master` triggers [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml),
+which publishes `ghcr.io/sahko123/sahko-website`. **New GitHub Container
+Registry packages default to private** even in a public repo — Watchtower
+pulling without credentials will get a 401/403 until this is flipped:
+
+1. On GitHub → your profile → **Packages** → `sahko-website`
+2. **Package settings** → **Change visibility** → **Public**
+
+Do this once, right after the first successful Action run.
+
+## 2. One-time: bring the board up
+
+Create the app directory and drop in [`docker-compose.yml`](docker-compose.yml) —
+this is the only file needed on the board now, since the image is
+self-contained (site + nginx.conf both baked in by the Dockerfile):
 
 ```
 /DATA/AppData/sahko-website/
-├── docker-compose.yml
-├── nginx.conf
-└── dist/
+└── docker-compose.yml
 ```
 
 `/DATA` is ZimaOS's storage area and is exposed over SMB and in the Files
-app, so you can copy files there without SSH.
+app, so you can copy the file there without SSH.
 
 Then start it (web terminal at `http://192.168.1.187:7681`, or SSH if you
 enable it):
@@ -51,24 +75,6 @@ curl -I http://192.168.1.187:8080
 Expect `HTTP/1.1 200 OK` and `Server: nginx`. If you get a connection
 refused, the container isn't up (`docker compose logs` will say why); if you
 get Caddy/ZimaOS headers instead, you hit port 80 by mistake.
-
-## 2. Build and copy the site
-
-```sh
-npm run build
-```
-
-Then copy the contents of `dist/` into `/DATA/AppData/sahko-website/dist/`
-on the board — via the ZimaOS Files app, an SMB mount, or `rsync`/`scp` if
-you've enabled SSH:
-
-```sh
-rsync -av --delete dist/ user@192.168.1.187:/DATA/AppData/sahko-website/dist/
-```
-
-nginx serves straight off disk, so new files are live immediately — no
-restart needed. (`docker compose restart` is only needed if you change
-`nginx.conf`.)
 
 ## 3. Point the tunnel at it
 
@@ -106,15 +112,43 @@ all traffic rather than the box:
 
 ## Updating the site
 
-Re-run step 2 (build, copy) — that's it.
+```sh
+git push
+```
+
+That's it — steps 1–4 above are one-time setup, not part of the normal
+update flow. Watchtower notices the new image within 5 minutes and restarts
+the container automatically.
+
+**Don't want to wait for the poll interval?** From the board's web terminal:
+
+```sh
+cd /DATA/AppData/sahko-website
+docker compose pull sahko-website && docker compose up -d sahko-website
+```
+
+**Want to build and inspect the image without pushing?** From the repo root
+(needs Docker installed — not verified from this environment, since Docker
+wasn't available here to test):
+
+```sh
+docker build -t sahko-website .
+docker run --rm -p 8080:8080 sahko-website
+```
 
 ## Troubleshooting
 
 - **502/error page from Cloudflare** — the tunnel can't reach the origin.
   Check `curl -I http://192.168.1.187:8080` from the board's LAN, and that
   the ingress uses the IP rather than `localhost`.
-- **Site loads but styling/JS missing** — `dist/` was copied incompletely;
-  make sure `_astro/` and `site.js` came across.
+- **Pushed to master but the site didn't change** — check the Actions tab
+  for a failed build first. If the build succeeded, check the GHCR package
+  is Public (step 1) — Watchtower fails silently on a pull it can't
+  authenticate for; `docker logs sahko-watchtower` on the board will show
+  the 401/403 if that's it.
+- **Site loads but styling/JS missing** — very unlikely now that the image
+  is built by CI from a clean checkout every time, but if it happens, check
+  the Actions log for the build step rather than anything on the board.
 - **Changes not showing** — Cloudflare edge cache. Purge it in the
   dashboard, or wait out the Edge TTL you set.
 - **All visitors log as one internal IP** — `real_ip_header
